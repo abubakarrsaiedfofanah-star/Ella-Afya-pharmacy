@@ -52,7 +52,9 @@ function addMedicine(id){
 
 function renderMedicines(){
   const term=$('#search').value.trim().toLowerCase();
-  const matches=medicines.filter(item=>`${item.name} ${item.generic_name||''} ${item.brand||''} ${item.barcode||''} ${item.strength||''}`.toLowerCase().includes(term)).slice(0,80);
+  const allMatches=medicines.filter(item=>`${item.name} ${item.generic_name||''} ${item.brand||''} ${item.barcode||''} ${item.strength||''}`.toLowerCase().includes(term));
+  const matches=allMatches.slice(0,80);
+  $('#medicineResultsMeta').textContent=allMatches.length>80?`Showing 80 of ${allMatches.length} matching medicines. Refine your search to find a specific item.`:`${allMatches.length} medicine${allMatches.length===1?'':'s'} found`;
   list.innerHTML=matches.map(item=>{
     const stock=medicineStock(item),flags=[item.prescription_required?'Prescription required':'',item.controlled_medicine?'Controlled medicine':''].filter(Boolean).join(' · '),low=stock>0&&stock<=stockLimit(item);
     const nearExpiry=batches.some(batch=>batch.medicine_id===item.id&&daysToExpiry(batch.expiry_date)<=90);
@@ -88,11 +90,16 @@ function renderCart(){
   totalElement.textContent=money(total);
   $('#tillAmount').textContent=money(total);
   $('#outstanding').textContent=`Outstanding: ${money(outstanding||total)}`;
-  $('#cartCount').textContent=`${cart.reduce((sum,item)=>sum+item.quantity,0)} item${cart.reduce((sum,item)=>sum+item.quantity,0)===1?'':'s'}`;
+  const itemCount=cart.reduce((sum,item)=>sum+item.quantity,0),countText=`${itemCount} item${itemCount===1?'':'s'}`;
+  $('#cartCount').textContent=countText;
+  $('#mobileCartCount').textContent=countText;
+  $('#mobileCartTotal').textContent=money(total);
+  $('#mobileCartSummary').hidden=itemCount===0;
   $('#paymentAmount').value=Number(outstanding||total).toFixed(2);
 }
 
 $('#search').addEventListener('input',renderMedicines);
+$('#mobileCartSummary').addEventListener('click',()=>$('#cartPanel').scrollIntoView({behavior:'smooth',block:'start'}));
 $('#search').addEventListener('keydown',event=>{
   if(event.key!=='Enter')return;
   const barcode=event.currentTarget.value.trim().toLowerCase();
@@ -209,4 +216,6 @@ $('#holds').addEventListener('click',async()=>{
   }));
 });
 
-updatePaymentFields();load();
+updatePaymentFields();
+if(matchMedia('(min-width: 901px)').matches)$('#search').focus({preventScroll:true});
+load();

@@ -25,12 +25,13 @@
 				<section class="card medicine-panel" aria-labelledby="medicineTitle">
 					<div class="page-head"><div><h2 id="medicineTitle">Medicines</h2><small class="muted">Barcode scanners work as keyboard input.</small></div><div class="portal-tools"><button class="btn secondary" id="hold" type="button">Hold sale</button><button class="btn secondary" id="holds" type="button">Held sales</button></div></div>
 					<label class="visually-hidden" for="search">Search medicines or scan barcode</label>
-					<input id="search" type="search" autocomplete="off" placeholder="Search name, generic, brand or barcode" autofocus>
+					<input id="search" type="search" autocomplete="off" placeholder="Search name, generic, brand or barcode">
 					<label class="field-label" for="prescription">Prescription</label>
 					<select id="prescription"><option value="">No prescription</option></select>
+					<p id="medicineResultsMeta" class="muted medicine-results-meta" aria-live="polite"></p>
 					<div id="medicines" aria-live="polite"><div class="skeleton medicine-skeleton"></div><div class="skeleton medicine-skeleton"></div><div class="skeleton medicine-skeleton"></div></div>
 				</section>
-				<section class="card cart-panel" aria-labelledby="cartTitle">
+				<section id="cartPanel" class="card cart-panel" aria-labelledby="cartTitle">
 					<div class="cart-heading"><h2 id="cartTitle">Current sale</h2><span class="pill" id="cartCount">0 items</span></div>
 					<div id="cart"><p class="muted">Loading cart…</p></div>
 					<div class="sale-total"><span>Total due</span><strong id="total">KSh 0</strong></div>
@@ -57,6 +58,7 @@
 					</section>
 				</section>
 			</div>
+			<button id="mobileCartSummary" class="mobile-cart-summary" type="button" hidden aria-label="Review current sale"><span id="mobileCartCount">0 items</span><strong id="mobileCartTotal">KSh 0</strong><span>Review sale</span></button>
 		</main>
 	</div>
 	<script src="../../../shared/js/config.js"></script>

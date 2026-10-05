@@ -41,3 +41,16 @@
 .till-instructions small{display:block;line-height:1.45;color:#76520c}
 .till-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 .till-instructions dl{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+.medicine-results-meta{min-height:16px;margin:8px 2px;font-size:11px}
+#cartPanel{scroll-margin-top:84px}
+.mobile-cart-summary{display:none}
+.mobile-cart-summary[hidden]{display:none}
+@media(max-width:900px){
+  .mobile-cart-summary{position:fixed;left:50%;bottom:calc(66px + env(safe-area-inset-bottom));z-index:84;display:flex;align-items:center;justify-content:space-between;gap:12px;width:min(620px,calc(100vw - 24px));min-height:54px;padding:9px 15px;transform:translateX(-50%);border:1px solid #0b705d;border-radius:15px;background:#075c4c;color:#fff;box-shadow:0 12px 34px rgba(6,59,48,.3);font:inherit;cursor:pointer}
+  .mobile-cart-summary strong{font-size:15px;white-space:nowrap}
+  .mobile-cart-summary span:last-child{font-size:11px;font-weight:800;white-space:nowrap}
+  .mobile-cart-summary:active{transform:translateX(-50%) scale(.98)}
+  #cartPanel{scroll-margin-top:78px}
+  .content{padding-bottom:calc(145px + env(safe-area-inset-bottom))}
+}
+body.dark .mobile-cart-summary{background:#075c4c;color:#fff}
