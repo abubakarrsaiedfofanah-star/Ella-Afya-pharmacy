@@ -14,7 +14,7 @@ self.addEventListener('fetch',event=>{
   if(request.method!=='GET')return;
   const url=new URL(request.url);
   if(url.origin!==self.location.origin||url.pathname==='/shared/js/config.js')return;
-  if(!/^\/(?:shared|auth|admin|seller|verify)\//.test(url.pathname)||!(/\.(?:css|js|png|jpe?g|svg|webp|woff2?)$/i.test(url.pathname)))return;
+  if(!/^\/(?:(?:shared|auth|admin|seller|verify)\/|landing\.(?:css|js)$)/.test(url.pathname)||!(/\.(?:css|js|png|jpe?g|svg|webp|woff2?)$/i.test(url.pathname)))return;
 
   event.respondWith((async()=>{
     const cache=await caches.open(CACHE_NAME);

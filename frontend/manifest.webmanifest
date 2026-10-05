@@ -3,7 +3,7 @@
   "name": "Ella Afya Pharmacy Management",
   "short_name": "Ella Afya",
   "description": "Secure pharmacy inventory, sales, prescriptions and business management.",
-  "start_url": "/auth/",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",

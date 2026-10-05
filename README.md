@@ -98,7 +98,7 @@ Never put `SUPABASE_SERVICE_ROLE_KEY`, M-Pesa consumer secret, passkey or other 
 5. Deploy the updated `admin-create-user` Edge Function after migration 027 so immediate Admin-created Sales activation also requires an MFA-verified Admin session. Manual M-PESA receipt verification works without Daraja; deploy the M-PESA Edge Functions only when enabling online/API payments.
 6. For Daraja API payments, add the M-Pesa secrets in Supabase Edge Function secrets.
 7. For Daraja C2B notifications, register the C2B callback URLs using `npm run mpesa:register-c2b`.
-8. Deploy the frontend to Vercel.
+8. Deploy the frontend to Vercel. The public pharmacy website is served at `/`; Sales and Admin sign-ins remain at `/auth/` and `/auth/admin/`.
 9. Copy `config.example.js` to `config.js` and set the public Supabase values.
 10. The build adds the PWA manifest, install metadata and root service worker to every page. The service worker caches only static app assets; it never caches Supabase API data, authentication state, or HTML pages. Install from the browser's app/install menu (or the app's Install button when supported).
 

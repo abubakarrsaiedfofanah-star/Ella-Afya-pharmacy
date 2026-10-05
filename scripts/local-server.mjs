@@ -23,9 +23,10 @@ function resolveUrl(urlPath) {
   }
   if (!p.startsWith('/') || p.includes('\0')) return null;
   p = p.replace(/\\/g, '/');
-  if (p === '/') p = '/frontend/auth/';
+  if (p === '/') p = '/frontend/';
   if (p === '/sw.js') p = '/frontend/sw.js';
   if (p === '/manifest.webmanifest') p = '/frontend/manifest.webmanifest';
+  if (p === '/landing.css' || p === '/landing.js') p = `/frontend${p}`;
   for (const [from, to] of aliases) if (p === from || p.startsWith(from + '/')) { p = to + p.slice(from.length); break; }
   let file = path.resolve(root, p.replace(/^\/+/, ''));
   const isInsideRoot = candidate => {
