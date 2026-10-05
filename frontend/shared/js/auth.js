@@ -22,15 +22,15 @@ export async function requireUser(roles = []) {
     throw new Error('Access denied');
   }
 
+  if (profile.role === 'admin' && !(await requireAdminMFA())) {
+    throw new Error('MFA required');
+  }
+
   if (!(await ensureDeviceSession())) {
     throw new Error('Device session revoked');
   }
 
   startSecurityControls();
-
-  if (profile.role === 'admin' && !(await requireAdminMFA())) {
-    throw new Error('MFA required');
-  }
 
   return { user, profile };
 }

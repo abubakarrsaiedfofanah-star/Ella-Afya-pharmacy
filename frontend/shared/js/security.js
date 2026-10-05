@@ -22,7 +22,9 @@ export async function touchDeviceSession(){
   const key=sessionStorage.getItem(DEVICE_KEY);
   if(!key)return false;
   const {data,error}=await supabase.rpc('touch_device_session',{p_session_key:key});
-  if(error||data===false){await supabase.auth.signOut();sessionStorage.removeItem(DEVICE_KEY);location.href=loginPath();return false;}
+  if(error){console.warn('Device-session check failed; it will retry on the next heartbeat.',error.message);return false;}
+  if(data===false){await supabase.auth.signOut();sessionStorage.removeItem(DEVICE_KEY);location.href=loginPath();return false;}
+  if(data!==true){console.warn('Device-session check returned no confirmation; it will retry on the next heartbeat.');return false;}
   return true;
 }
 
