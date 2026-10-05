@@ -14,9 +14,10 @@ if(missing.length){
 }
 
 const frontend=path.join(root,'frontend');
-const output=path.join(root,'dist','frontend');
-await fs.rm(path.join(root,'dist'),{recursive:true,force:true});
+const output=path.join(root,'dist');
+await fs.rm(output,{recursive:true,force:true});
 await fs.cp(frontend,output,{recursive:true});
+await fs.copyFile(path.join(output,'auth','index.html'),path.join(output,'index.html'));
 const config={SUPABASE_URL:supabaseUrl,SUPABASE_ANON_KEY:anonKey,MPESA_FUNCTION_NAME:'mpesa-stk'};
 await fs.writeFile(path.join(output,'shared','js','config.js'),`window.APP_CONFIG = ${JSON.stringify(config,null,2)};\n`,'utf8');
 console.log('Static pharmacy site built into dist/.');

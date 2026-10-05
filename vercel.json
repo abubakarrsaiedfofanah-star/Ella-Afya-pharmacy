@@ -4,40 +4,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "cleanUrls": true,
-  "rewrites": [
-    {
-      "source": "/auth/register",
-      "destination": "/frontend/auth/register/index.html"
-    },
-    {
-      "source": "/auth/register/",
-      "destination": "/frontend/auth/register/index.html"
-    },
-    {
-      "source": "/",
-      "destination": "/frontend/auth/"
-    },
-    {
-      "source": "/auth/:path*",
-      "destination": "/frontend/auth/:path*"
-    },
-    {
-      "source": "/verify/:path*",
-      "destination": "/frontend/verify/:path*"
-    },
-    {
-      "source": "/admin/:path*",
-      "destination": "/frontend/admin/:path*"
-    },
-    {
-      "source": "/seller/:path*",
-      "destination": "/frontend/seller/:path*"
-    },
-    {
-      "source": "/shared/:path*",
-      "destination": "/frontend/shared/:path*"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
