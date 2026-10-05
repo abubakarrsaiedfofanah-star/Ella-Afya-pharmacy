@@ -4,3 +4,33 @@
 @media(max-width:900px){
   .content>.page-head h1{max-width:none}
 }
+
+.seller-today{grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch}
+.seller-today .metric{position:relative;min-width:0;overflow:hidden}
+.seller-today .metric h2{font-size:clamp(20px,2.2vw,27px);overflow-wrap:anywhere}
+.seller-today #shift[data-state="open"]{color:#0c8067}
+.seller-today #shift[data-state="closed"]{color:var(--muted)}
+.seller-card-link{display:inline-flex;margin-top:9px;font-size:12px;font-weight:750;color:var(--brand);text-decoration:none}
+.seller-home-grid{align-items:start;margin-top:18px}
+.seller-section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:8px}
+.seller-section-heading h3{margin:0}
+.seller-section-heading p{margin:5px 0 0;font-size:12px}
+.seller-section-heading>a{font-size:12px;font-weight:750;text-decoration:none;white-space:nowrap}
+.seller-activity{display:grid}
+.seller-activity-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:14px;padding:12px 2px;border-bottom:1px solid var(--line)}
+.seller-activity-row:last-child{border-bottom:0}
+.seller-activity-main{display:grid;gap:4px;min-width:0}
+.seller-activity-main strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seller-activity-main small{color:var(--muted);font-size:11px}
+.seller-activity-amount{font-size:13px;white-space:nowrap}
+.sale-state{padding:5px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted);font-size:10px;font-weight:800;text-transform:capitalize;white-space:nowrap}
+.sale-state-paid{background:#e6f7ee;color:#147044}
+.sale-state-pending_payment{background:#fff5dc;color:#825b06}
+.sale-state-cancelled,.sale-state-refunded{background:#fff0ef;color:#a83232}
+.seller-empty{padding:14px 0}
+.seller-quick{grid-template-columns:repeat(2,minmax(0,1fr))}
+body.dark .sale-state-paid{background:#173d2b;color:#9be0b7}
+body.dark .sale-state-pending_payment{background:#403417;color:#f4d37c}
+body.dark .sale-state-cancelled,body.dark .sale-state-refunded{background:#452525;color:#ffc0b8}
+@media(max-width:1050px){.seller-today{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.seller-today{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.seller-today .metric{padding:14px}.seller-today .metric h2{font-size:20px}.seller-activity-row{grid-template-columns:minmax(0,1fr) auto;gap:8px}.seller-activity-amount{grid-column:2;grid-row:1}.sale-state{grid-column:1;justify-self:start}.seller-quick{grid-template-columns:1fr}.seller-section-heading{align-items:center}}
