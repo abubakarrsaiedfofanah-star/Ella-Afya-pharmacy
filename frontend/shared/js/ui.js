@@ -4,6 +4,7 @@
   const sidebar = document.querySelector('.sidebar');
   const main = document.querySelector('.content');
   const isAdmin = location.pathname.startsWith('/admin/');
+  const currentPath = location.pathname.replace(/\/+$/, '') || '/';
 
   document.querySelectorAll('#msg,#csvMsg,#createMsg,#permMsg,#passwordMsg').forEach(message => {
     if (!message.hasAttribute('role')) message.setAttribute('role', 'status');
@@ -30,14 +31,20 @@
     if (!nav) { nav = document.createElement('nav'); nav.className = 'nav'; sidebar.append(nav); }
     const groups = isAdmin ? adminGroups : location.pathname.startsWith('/seller/') ? sellerGroups : null;
     if (groups) {
-      nav.setAttribute('aria-label', isAdmin ? 'Admin navigation' : 'Seller navigation');
+      nav.setAttribute('aria-label', isAdmin ? 'Admin navigation' : 'Sales navigation');
       nav.replaceChildren(...groups.map(([title, items]) => {
-        const section = document.createElement('div');
-        section.className = 'nav-group';
-        section.setAttribute('role', 'group');
+        const collapsible = isAdmin && title !== 'Overview' && title !== 'Account';
+        const section = document.createElement(collapsible ? 'details' : 'div');
+        section.className = collapsible ? 'nav-group nav-disclosure' : 'nav-group';
         section.setAttribute('aria-label', title);
-        const heading = document.createElement('span');
+        const activeGroup = items.some(([, , href]) => href !== '#' && (new URL(href, location.origin).pathname.replace(/\/+$/, '') || '/') === currentPath);
+        const storedOpen = (() => { try { return localStorage.getItem(`pharmacy-admin-nav-${title}`) === 'open'; } catch { return false; } })();
+        if (collapsible) section.open = activeGroup || storedOpen;
+        const heading = document.createElement(collapsible ? 'summary' : 'span');
         heading.className = 'nav-group-title'; heading.textContent = title; section.append(heading);
+        if (collapsible) section.addEventListener('toggle', () => {
+          try { localStorage.setItem(`pharmacy-admin-nav-${title}`, section.open ? 'open' : 'closed'); } catch {}
+        });
         for (const [icon, label, href, signOut] of items) {
           const link = document.createElement('a'); link.href = href;
           if (signOut) link.id = 'logout';
@@ -132,7 +139,6 @@
     backdrop.addEventListener('click', () => closeNav(true));
   }
 
-  const currentPath = location.pathname.replace(/\/+$/, '') || '/';
   document.querySelectorAll('.nav a[href]').forEach(link => {
     const href = link.getAttribute('href');
     if (!href || href === '#') return;
