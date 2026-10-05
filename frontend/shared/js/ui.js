@@ -240,10 +240,49 @@
     heading?.remove(); sidebar.prepend(brand);
   }
 
-  document.querySelectorAll('.table-wrap').forEach(wrap => {
-    const check = () => wrap.classList.toggle('is-scrollable', wrap.scrollWidth > wrap.clientWidth + 4);
-    check(); window.addEventListener('resize', check, { passive: true });
-  });
+  let tableHintNumber = 0;
+  const tableScrollChecks = new WeakMap();
+  const prepareScrollableTable = wrap => {
+    if (wrap.dataset.scrollHintReady === 'true') return;
+    wrap.dataset.scrollHintReady = 'true';
+    const hint = document.createElement('small');
+    hint.className = 'table-scroll-hint';
+    hint.textContent = 'Swipe or scroll sideways to see more columns';
+    hint.id = `table-scroll-hint-${++tableHintNumber}`;
+    hint.hidden = true;
+    wrap.before(hint);
+    const check = () => {
+      const scrollable = wrap.scrollWidth > wrap.clientWidth + 4;
+      wrap.classList.toggle('is-scrollable', scrollable);
+      hint.hidden = !scrollable;
+      if (scrollable) {
+        wrap.tabIndex = 0;
+        wrap.setAttribute('role', 'region');
+        wrap.setAttribute('aria-label', 'Scrollable table. Use the left and right arrow keys to view all columns.');
+        wrap.setAttribute('aria-describedby', hint.id);
+      } else {
+        wrap.removeAttribute('tabindex');
+        wrap.removeAttribute('role');
+        wrap.removeAttribute('aria-label');
+        wrap.removeAttribute('aria-describedby');
+      }
+    };
+    tableScrollChecks.set(wrap, check);
+    if ('ResizeObserver' in window) new ResizeObserver(check).observe(wrap);
+    else window.addEventListener('resize', check, { passive: true });
+    check();
+  };
+  const prepareTables = node => {
+    if (!(node instanceof Element)) return;
+    if (node.matches('.table-wrap')) prepareScrollableTable(node);
+    node.querySelectorAll?.('.table-wrap').forEach(prepareScrollableTable);
+  };
+  document.querySelectorAll('.table-wrap').forEach(prepareScrollableTable);
+  new MutationObserver(records => records.forEach(record => {
+    tableScrollChecks.get(record.target.closest?.('.table-wrap'))?.();
+    record.addedNodes.forEach(prepareTables);
+  }))
+    .observe(body, { childList: true, subtree: true });
 
   const setNetworkState = () => {
     let indicator = document.querySelector('.network-state');
