@@ -28,7 +28,9 @@ form.addEventListener('submit',async e=>{e.preventDefault();if(renderLock())retu
   const {data:{user},error:userError}=await supabase.auth.getUser();
   if(userError||!user){await supabase.auth.signOut();safeMsg('Unable to verify this account. Please sign in again.');setBusy(false);return}
   const {data:p,error:profileError}=await supabase.from('profiles').select('role,active,full_name').eq('id',user.id).single();
-  if(profileError||!p?.active||p.role!==expectedRole){await supabase.auth.signOut();safeMsg(`This account is not authorized for the ${portalName} portal. Use the matching sign-in page.`);setBusy(false);return}
+  if(profileError||!p){await supabase.auth.signOut();safeMsg('Unable to verify this account. Please sign in again.');setBusy(false);return}
+  if(!p.active){await supabase.auth.signOut();safeMsg(expectedRole==='seller'?'Your Sales account is waiting for Admin approval. Workspace access is not active yet.':'This Admin account is inactive. Contact your system administrator.');setBusy(false);return}
+  if(p.role!==expectedRole){await supabase.auth.signOut();safeMsg(`This account is not authorized for the ${portalName} portal. Use the matching sign-in page.`);setBusy(false);return}
   if(!(await ensureDeviceSession()))return;
   if(p.role==='admin'){
    const {data:aal,error:mfaError}=await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
