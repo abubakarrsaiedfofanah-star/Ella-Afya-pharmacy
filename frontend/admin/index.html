@@ -13,28 +13,42 @@
 		<aside class="sidebar" id="sidebar">
 			<div class="brand"><img class="brand-mark" src="/shared/assets/ella-afya-mark.png" alt="Ella Afya Pharmacy"><div><h2>Ella Afya</h2><small>Admin Control Center</small></div></div>
 			<nav class="nav" aria-label="Admin navigation">
-				<a class="active" href="/admin/">⌂ <span>Dashboard</span></a>
-				<a href="/admin/pages/inventory/">▦ <span>Inventory</span></a>
-				<a href="/admin/pages/receiving/">＋ <span>Receiving</span></a>
-				<a href="/admin/pages/purchasing/">▤ <span>Purchasing</span></a>
-				<a href="/admin/pages/sales/">↗ <span>Sales</span></a>
-				<a href="/admin/pages/payments/">₭ <span>Payments</span></a>
-				<a href="/admin/pages/prescriptions/">Rx <span>Prescriptions</span></a>
-				<a href="/admin/pages/alerts/">! <span>Alerts</span></a>
-				<a href="/admin/pages/intelligence/">✦ <span>Intelligence</span></a>
-				<a href="/admin/pages/operations/">⚙ <span>Operations</span></a>
-				<a href="/admin/pages/adjustments/">± <span>Adjustments</span></a>
-				<a href="/admin/pages/approvals/">✓ <span>Approvals</span></a>
-				<a href="/admin/pages/suppliers/">♙ <span>Suppliers</span></a>
-				<a href="/admin/pages/expenses/">− <span>Expenses</span></a>
-				<a href="/admin/pages/reports/">▥ <span>Reports</span></a>
-				<a href="/admin/pages/reconciliation/">≋ <span>Reconciliation</span></a>
-				<a href="/admin/pages/users/">♧ <span>Staff</span></a>
-				<a href="/admin/pages/security/">◈ <span>Security</span></a>
-				<a href="/admin/pages/sessions/">⌘ <span>Sessions</span></a>
-				<a href="/admin/pages/settings/">⚙ <span>Settings</span></a>
-				<a href="#" id="logout">↪ <span>Sign out</span></a>
-			</nav>
+  <div class="nav-group">
+    <span class="nav-group-title">Workspace</span>
+    <a class="active" aria-current="page" href="/admin/"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-label">Dashboard</span></a>
+  </div>
+  <details class="nav-disclosure">
+    <summary class="nav-group-title">Stock &amp; supply</summary>
+    <a href="/admin/pages/inventory/"><span class="nav-icon" aria-hidden="true">▦</span><span class="nav-label">Inventory</span></a>
+    <a href="/admin/pages/receiving/"><span class="nav-icon" aria-hidden="true">↓</span><span class="nav-label">Receiving</span></a>
+    <a href="/admin/pages/purchasing/"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Purchasing</span></a>
+    <a href="/admin/pages/suppliers/"><span class="nav-icon" aria-hidden="true">◆</span><span class="nav-label">Suppliers</span></a>
+    <a href="/admin/pages/adjustments/"><span class="nav-icon" aria-hidden="true">±</span><span class="nav-label">Adjustments</span></a>
+  </details>
+  <details class="nav-disclosure">
+    <summary class="nav-group-title">Sales &amp; money</summary>
+    <a href="/admin/pages/sales/"><span class="nav-icon" aria-hidden="true">↗</span><span class="nav-label">Sales</span></a>
+    <a href="/admin/pages/payments/"><span class="nav-icon" aria-hidden="true">$</span><span class="nav-label">Payments</span></a>
+    <a href="/admin/pages/prescriptions/"><span class="nav-icon" aria-hidden="true">Rx</span><span class="nav-label">Prescriptions</span></a>
+    <a href="/admin/pages/expenses/"><span class="nav-icon" aria-hidden="true">−</span><span class="nav-label">Expenses</span></a>
+    <a href="/admin/pages/reports/"><span class="nav-icon" aria-hidden="true">▥</span><span class="nav-label">Reports</span></a>
+    <a href="/admin/pages/reconciliation/"><span class="nav-icon" aria-hidden="true">⇄</span><span class="nav-label">Reconciliation</span></a>
+  </details>
+  <details class="nav-disclosure">
+    <summary class="nav-group-title">People &amp; controls</summary>
+    <a href="/admin/pages/users/"><span class="nav-icon" aria-hidden="true">♙</span><span class="nav-label">Staff</span></a>
+    <a href="/admin/pages/approvals/"><span class="nav-icon" aria-hidden="true">✓</span><span class="nav-label">Approvals</span></a>
+    <a href="/admin/pages/alerts/"><span class="nav-icon" aria-hidden="true">!</span><span class="nav-label">Alerts</span></a>
+    <a href="/admin/pages/intelligence/"><span class="nav-icon" aria-hidden="true">✦</span><span class="nav-label">Intelligence</span></a>
+    <a href="/admin/pages/operations/"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-label">Operations</span></a>
+    <a href="/admin/pages/security/"><span class="nav-icon" aria-hidden="true">◈</span><span class="nav-label">Security</span></a>
+    <a href="/admin/pages/sessions/"><span class="nav-icon" aria-hidden="true">◷</span><span class="nav-label">Sessions</span></a>
+    <a href="/admin/pages/settings/"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-label">Settings</span></a>
+  </details>
+  <div class="nav-group nav-account">
+    <a href="#" id="logout"><span class="nav-icon" aria-hidden="true">↪</span><span class="nav-label">Sign out</span></a>
+  </div>
+</nav>
 		</aside>
 		<div class="nav-backdrop" aria-hidden="true"></div>
 		<main class="content">
@@ -47,6 +61,16 @@
 				<article class="card metric"><div class="metric-top">Net today</div><h2 id="todayNet">KSh 0</h2><small class="sub">After recorded expenses</small></article>
 				<article class="card metric"><div class="metric-top">Paid sales</div><h2 id="todaySales">0</h2><small id="todaySalesValue" class="sub">KSh 0 gross</small></article>
 				<article class="card metric"><div class="metric-top">Expenses</div><h2 id="todayExpenses">KSh 0</h2><small class="sub">Recorded today</small></article>
+			</section>
+			<section class="business-overview" aria-labelledby="lifetimeHeading">
+				<div class="business-overview-head"><div><h2 id="lifetimeHeading">Business performance · all time</h2><p class="muted">Collections, refunds, costs and estimated profit since records began.</p></div><span id="profitabilityStatus" class="profitability-pill" aria-live="polite">Loading</span></div>
+				<div class="cards advanced-kpis">
+					<article class="card metric"><div class="metric-top">Net money collected</div><h2 id="lifetimeCollections">KSh 0</h2><small class="sub">Payments kept after refunds</small></article>
+					<article class="card metric"><div class="metric-top">Sales before refunds</div><h2 id="lifetimeSales">KSh 0</h2><small id="lifetimeSalesCount" class="sub">0 settled sales</small></article>
+					<article class="card metric"><div class="metric-top">Refunds</div><h2 id="lifetimeRefunds">KSh 0</h2><small class="sub">Recorded payment refunds</small></article>
+					<article id="lifetimeProfitCard" class="card metric"><div class="metric-top">Estimated net profit</div><h2 id="lifetimeProfit">KSh 0</h2><small id="lifetimeProfitCosts" class="sub">After stock costs and expenses</small></article>
+				</div>
+				<p id="lifetimeNote" class="muted business-note">Profit estimate uses saved purchase prices and expenses recorded in the system.</p>
 			</section>
 			<section class="grid-2">
 				<article class="card"><h3>Sales and profit trends</h3><div id="weekChart" class="chart" aria-live="polite"></div><small id="chartStatus" class="muted"></small></article>
@@ -61,7 +85,7 @@
 				<article class="card metric"><div class="metric-top">Audit events · 24h</div><h2 id="audit24">0</h2></article>
 			</section>
 			<section class="grid-2">
-				<article class="card"><h3>Top medicines today</h3><div id="topMedicines" class="stack"></div></article>
+				<article class="card"><h3>Best-selling medicines · all time</h3><div id="topMedicines" class="stack"></div></article>
 				<article class="card"><h3>Seller performance</h3><div id="sellerList" class="stack"></div></article>
 			</section>
 			<section class="grid-2">

@@ -5,3 +5,19 @@
 @media(max-width:900px){
   .content>.page-head h1{max-width:none}
 }
+
+.business-overview{margin-top:24px;padding:20px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(135deg,rgba(8,116,95,.055),rgba(255,255,255,.82));box-shadow:var(--shadow)}
+.business-overview-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
+.business-overview-head h2{margin:0;font-size:19px;letter-spacing:-.025em}
+.business-overview-head p{margin:5px 0 0}
+.business-overview .cards{gap:12px}
+.business-overview .metric{min-height:130px}
+.profitability-pill{display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:6px 12px;border-radius:999px;background:#edf2f0;color:#52645e;font-size:11px;font-weight:800;white-space:nowrap}
+.profitability-pill[data-state="profit"]{background:#e5f7ee;color:#147044}
+.profitability-pill[data-state="loss"]{background:#fff0ef;color:#a83232}
+.profitability-pill[data-state="break-even"]{background:#fff6df;color:#79540a}
+.profitability-note,.business-note{margin:10px 2px 0;font-size:11px;line-height:1.55}
+.nav-account{margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,255,255,.09)}
+.sidebar .nav{min-height:calc(100vh - 100px);align-content:start}
+@media(max-width:900px){.business-overview{padding:15px;border-radius:17px}.business-overview-head{align-items:flex-start;flex-direction:column}.business-overview-head h2{font-size:17px}.business-overview .cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:430px){.business-overview .cards{grid-template-columns:1fr}.profitability-pill{white-space:normal}}

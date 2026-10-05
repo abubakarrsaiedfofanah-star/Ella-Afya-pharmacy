@@ -92,7 +92,7 @@ Never put `SUPABASE_SERVICE_ROLE_KEY`, M-Pesa consumer secret, passkey or other 
 
 ## Deployment
 1. Create the Supabase project.
-2. Run migrations 001 through 027 in order. Run migrations 026 and 027 separately, in that order, and let 026 finish before starting 027. These are required to make role checks fail closed and to enforce Admin MFA in the database.
+2. Run migrations 001 through 028 in order. Run migrations 026 and 027 separately, in that order, and let 026 finish before starting 027. Then run 028. These are required to make role checks fail closed, enforce Admin MFA in the database, and add the lifetime Admin dashboard summary.
 3. Configure Supabase Auth.
 4. Create the first admin profile securely.
 5. Deploy the updated `admin-create-user` Edge Function after migration 027 so immediate Admin-created Sales activation also requires an MFA-verified Admin session. Manual M-PESA receipt verification works without Daraja; deploy the M-PESA Edge Functions only when enabling online/API payments.

@@ -13,10 +13,10 @@
 
   const adminGroups = [
     ['Overview', [['HM', 'Dashboard', '/admin/']]],
-    ['Inventory', [['IN', 'Inventory', '/admin/pages/inventory/'], ['RC', 'Receiving', '/admin/pages/receiving/'], ['PO', 'Purchasing', '/admin/pages/purchasing/']]],
-    ['Transactions', [['SL', 'Sales', '/admin/pages/sales/'], ['PY', 'Payments', '/admin/pages/payments/'], ['RP', 'Reports', '/admin/pages/reports/'], ['ED', 'Reconciliation', '/admin/pages/reconciliation/']]],
-    ['Pharmacy operations', [['RX', 'Prescriptions', '/admin/pages/prescriptions/'], ['OK', 'Approvals', '/admin/pages/approvals/'], ['!', 'Alerts', '/admin/pages/alerts/'], ['OP', 'Operations', '/admin/pages/operations/'], ['SU', 'Suppliers', '/admin/pages/suppliers/'], ['AD', 'Adjustments', '/admin/pages/adjustments/'], ['EX', 'Expenses', '/admin/pages/expenses/'], ['AI', 'Intelligence', '/admin/pages/intelligence/']]],
-    ['Security & people', [['SC', 'Security', '/admin/pages/security/'], ['DV', 'Sessions', '/admin/pages/sessions/'], ['ST', 'Staff', '/admin/pages/users/'], ['SE', 'Settings', '/admin/pages/settings/']]],
+    ['Stock & supply', [['IN', 'Inventory', '/admin/pages/inventory/'], ['RC', 'Receiving', '/admin/pages/receiving/'], ['PO', 'Purchasing', '/admin/pages/purchasing/'], ['SU', 'Suppliers', '/admin/pages/suppliers/'], ['AD', 'Adjustments', '/admin/pages/adjustments/']]],
+    ['Sales & money', [['SL', 'Sales', '/admin/pages/sales/'], ['PY', 'Payments', '/admin/pages/payments/'], ['RX', 'Prescriptions', '/admin/pages/prescriptions/'], ['EX', 'Expenses', '/admin/pages/expenses/'], ['RP', 'Reports', '/admin/pages/reports/'], ['ED', 'Reconciliation', '/admin/pages/reconciliation/']]],
+    ['People & operations', [['ST', 'Staff', '/admin/pages/users/'], ['OK', 'Approvals', '/admin/pages/approvals/'], ['!', 'Alerts', '/admin/pages/alerts/'], ['AI', 'Intelligence', '/admin/pages/intelligence/'], ['OP', 'Operations', '/admin/pages/operations/']]],
+    ['Security & settings', [['SC', 'Security', '/admin/pages/security/'], ['DV', 'Sessions', '/admin/pages/sessions/'], ['SE', 'Settings', '/admin/pages/settings/']]],
     ['Account', [['->', 'Sign out', '#', true]]],
   ];
   const sellerGroups = [
@@ -36,6 +36,7 @@
         const collapsible = isAdmin && title !== 'Overview' && title !== 'Account';
         const section = document.createElement(collapsible ? 'details' : 'div');
         section.className = collapsible ? 'nav-group nav-disclosure' : 'nav-group';
+        if (title === 'Account') section.classList.add('nav-account');
         section.setAttribute('aria-label', title);
         const activeGroup = items.some(([, , href]) => href !== '#' && (new URL(href, location.origin).pathname.replace(/\/+$/, '') || '/') === currentPath);
         const storedOpen = (() => { try { return localStorage.getItem(`pharmacy-admin-nav-${title}`) === 'open'; } catch { return false; } })();
