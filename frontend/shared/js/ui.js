@@ -6,6 +6,16 @@
   const isAdmin = location.pathname.startsWith('/admin/');
   const currentPath = location.pathname.replace(/\/+$/, '') || '/';
 
+  if (main) {
+    if (!main.id) main.id = 'main-content';
+    if (!main.hasAttribute('tabindex')) main.tabIndex = -1;
+    const skipLink = document.createElement('a');
+    skipLink.className = 'skip-link';
+    skipLink.href = `#${main.id}`;
+    skipLink.textContent = 'Skip to main content';
+    body.insertBefore(skipLink, body.firstChild);
+  }
+
   document.querySelectorAll('#msg,#csvMsg,#createMsg,#permMsg,#passwordMsg').forEach(message => {
     if (!message.hasAttribute('role')) message.setAttribute('role', 'status');
     if (!message.hasAttribute('aria-live')) message.setAttribute('aria-live', 'polite');
@@ -105,29 +115,36 @@
   const menuButton = document.querySelector('#menuBtn');
   const mobileQuery = window.matchMedia('(max-width: 900px)');
   const isMobile = () => mobileQuery.matches;
+  let navTrigger = menuButton;
+  const setMenuExpanded = expanded => {
+    menuButton?.setAttribute('aria-expanded', String(expanded));
+    document.querySelector('.mobile-bottom-nav button')?.setAttribute('aria-expanded', String(expanded));
+  };
   const closeNav = (restoreFocus = false) => {
     sidebar?.classList.remove('open');
     if (sidebar && isMobile()) sidebar.inert = true;
-    menuButton?.setAttribute('aria-expanded', 'false');
+    setMenuExpanded(false);
     body.classList.remove('nav-open');
-    if (restoreFocus) menuButton?.focus();
+    if (restoreFocus) navTrigger?.focus();
   };
-  const openNav = () => {
+  const openNav = event => {
+    navTrigger = event?.currentTarget || menuButton;
     if (sidebar) { sidebar.inert = false; sidebar.classList.add('open'); }
-    menuButton?.setAttribute('aria-expanded', 'true');
+    setMenuExpanded(true);
     body.classList.add('nav-open');
     sidebar?.querySelector('.nav a[href]:not([href="#"])')?.focus();
   };
   if (menuButton && sidebar) {
     menuButton.setAttribute('aria-controls', sidebar.id);
-    menuButton.addEventListener('click', () => sidebar.classList.contains('open') ? closeNav() : openNav());
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.addEventListener('click', event => sidebar.classList.contains('open') ? closeNav() : openNav(event));
   }
   sidebar?.querySelectorAll('.nav a').forEach(link => link.addEventListener('click', () => closeNav()));
   const syncNavViewport = () => {
     if (!sidebar) return;
     if (!isMobile()) { sidebar.classList.remove('open'); body.classList.remove('nav-open'); }
     sidebar.inert = isMobile() && !sidebar.classList.contains('open');
-    menuButton?.setAttribute('aria-expanded', String(sidebar.classList.contains('open')));
+    setMenuExpanded(sidebar.classList.contains('open'));
   };
   syncNavViewport();
   window.addEventListener('resize', syncNavViewport, { passive: true });
@@ -166,8 +183,8 @@
       nav.append(link);
     }
     const more = document.createElement('button'); more.type = 'button'; more.textContent = 'More';
-    more.setAttribute('aria-label', 'Open all navigation');
-    if (!activeShortcut) { more.classList.add('active'); more.setAttribute('aria-current', 'page'); }
+    more.setAttribute('aria-label', 'Open all navigation'); more.setAttribute('aria-controls', sidebar.id); more.setAttribute('aria-expanded', 'false');
+    if (!activeShortcut) more.classList.add('active');
     more.addEventListener('click', openNav); nav.append(more); body.append(nav);
   }
 

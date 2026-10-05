@@ -362,6 +362,14 @@ body.dark .metric h2.skeleton{background-image:linear-gradient(90deg,#20322c,#31
 }
 @media(max-width:390px){.chart-modes{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}.chart-modes button{padding:6px 4px;font-size:11px}.risk-row{grid-template-columns:minmax(84px,1fr) minmax(54px,1.5fr) 28px;gap:8px}.command-tools kbd{display:none}}
 
+/* Keyboard and screen-reader navigation */
+.skip-link{position:fixed;top:10px;left:10px;z-index:250;transform:translateY(calc(-100% - 14px));padding:11px 15px;border:2px solid var(--focus);border-radius:10px;background:var(--surface);color:var(--ink);font-size:14px;font-weight:800;text-decoration:none;box-shadow:0 8px 28px #0003;transition:transform .15s ease}
+.skip-link:focus{transform:translateY(0)}
+#main-content{scroll-margin-top:84px}
+.mobile-bottom-nav button[aria-expanded="true"]{background:var(--brand-soft);color:var(--brand)}
+body.dark .skip-link{background:var(--surface);color:var(--ink)}
+@media(prefers-reduced-motion:reduce){.skip-link{transition:none}}
+
 /* Touch-first checkout and print-safe receipt preview */
 .medicine-panel .page-head h2,.cart-heading h2{margin:0;font-size:19px}
 .medicine-panel #search{width:100%;min-height:50px;padding:12px 14px;border:2px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:16px}
