@@ -1,0 +1,7 @@
+.content>.grid-2{align-items:start}
+.content>.grid-2>.card{min-width:0}
+.content .form-grid{margin-top:12px}
+
+@media(max-width:650px){
+  .content .form-grid{grid-template-columns:1fr}
+}

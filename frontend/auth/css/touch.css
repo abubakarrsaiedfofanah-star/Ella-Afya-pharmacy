@@ -1,0 +1,4 @@
+.auth-page .eye{top:3px;right:3px;width:44px;height:44px;display:grid;place-items:center}
+.auth-page .check{min-height:44px}
+.auth-page .check input{width:18px;height:18px;flex:0 0 18px}
+.auth-page .secondary-btn{display:inline-flex;min-height:44px;align-items:center;justify-content:center}

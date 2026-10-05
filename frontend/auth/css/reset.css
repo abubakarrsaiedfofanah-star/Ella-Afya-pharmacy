@@ -1,0 +1,8 @@
+@import url("./auth.css");
+
+.auth-panel-inner{max-width:500px}
+#resetForm,#recoveryForm{display:grid;gap:14px}
+
+@media(max-width:600px){
+  .auth-panel-inner{padding:28px 22px}
+}

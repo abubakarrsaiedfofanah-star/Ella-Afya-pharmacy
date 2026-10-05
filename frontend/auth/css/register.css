@@ -1,0 +1,10 @@
+@import url("./auth.css");
+@import url("./brand.css");
+
+#registerForm{display:grid;gap:13px}
+#registerForm .auth-btn{margin-top:4px}
+#registerForm .security-note{line-height:1.5}
+
+@media(max-width:900px){
+  #registerForm{gap:11px}
+}

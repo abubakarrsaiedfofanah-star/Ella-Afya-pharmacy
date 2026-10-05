@@ -1,0 +1,7 @@
+.content>.card{display:grid;gap:16px}
+#summary{margin-top:4px}
+#close{min-height:46px}
+
+@media(max-width:600px){
+  #summary{grid-template-columns:1fr 1fr}
+}

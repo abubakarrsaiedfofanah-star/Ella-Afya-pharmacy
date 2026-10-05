@@ -1,0 +1,7 @@
+.content>.grid-3{align-items:stretch}
+.content>.grid-3>.card{min-width:0}
+.content .stack{max-height:420px;overflow:auto}
+
+@media(max-width:600px){
+  .content .stack{max-height:320px}
+}

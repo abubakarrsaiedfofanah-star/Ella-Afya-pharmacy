@@ -1,0 +1,9 @@
+@import url("./auth.css");
+
+.auth-card{width:min(100% - 32px,480px);margin:8vh auto;padding:clamp(22px,5vw,40px)}
+#code{font-size:1.35rem;letter-spacing:.16em;text-align:center}
+#verifyChallenge{width:100%;margin-top:12px}
+
+@media(max-width:600px){
+  .auth-card{margin:4vh auto}
+}

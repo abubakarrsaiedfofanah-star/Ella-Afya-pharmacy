@@ -1,0 +1,5 @@
+body.auth-page{min-height:100vh;display:grid;place-items:center;padding:20px}
+.auth-card{width:min(100%,520px);padding:clamp(22px,5vw,40px);background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+#number{width:100%;min-height:48px;margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+#verify{min-height:44px;padding:10px 16px}
+#result{margin-top:16px;overflow-wrap:anywhere}

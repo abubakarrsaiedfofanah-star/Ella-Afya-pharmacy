@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b705d">
+  <meta name="description" content="Invitation-only staff registration for Ella Afya Pharmacy.">
+  <title>Staff Registration | Ella Afya Pharmacy</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-shell">
+    <section class="auth-visual" aria-label="Ella Afya Pharmacy staff onboarding">
+      <div class="auth-brand">
+        <img class="brand-logo" src="/shared/assets/ella-afya-mark.svg" alt="" aria-hidden="true">
+        <div>
+          <strong>Ella Afya Pharmacy</strong>
+          <small>Controlled staff onboarding</small>
+        </div>
+      </div>
+      <div class="visual-copy">
+        <span class="eyebrow">STAFF REGISTRATION</span>
+        <h1>Create your <em>secure staff account.</em></h1>
+        <p>Registration is invitation-controlled. New accounts remain inactive until an administrator authorizes access.</p>
+      </div>
+      <div class="security-strip">
+        <span>Invitation protected</span>
+        <span>Seller role by default</span>
+        <span>Admin activation</span>
+      </div>
+    </section>
+    <main class="auth-panel">
+      <div class="auth-panel-inner">
+        <div class="mobile-brand">
+          <img class="brand-logo" src="/shared/assets/ella-afya-mark.svg" alt="" aria-hidden="true">
+          <strong>Ella Afya Pharmacy</strong>
+        </div>
+        <div class="form-heading">
+          <span class="eyebrow">NEW STAFF</span>
+          <h2>Register your account</h2>
+          <p>Ask your administrator for the staff registration key.</p>
+        </div>
+        <form id="registerForm">
+          <label for="fullName">Full name
+            <input id="fullName" required autocomplete="name" placeholder="Your full name">
+          </label>
+          <label for="email">Email address
+            <input id="email" type="email" required autocomplete="email" placeholder="name@pharmacy.com">
+          </label>
+          <label for="password">Password
+            <div class="password-field">
+              <input id="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" placeholder="12+ characters, mixed types">
+              <button type="button" class="eye" id="togglePassword" aria-label="Show password">&#9673;</button>
+            </div>
+          </label>
+          <div id="strength" class="security-note">Use 12–128 characters with upper/lowercase, number and symbol.</div>
+          <label for="key">Registration key
+            <input id="key" type="password" required autocomplete="off" placeholder="Provided by administrator">
+          </label>
+          <button class="auth-btn" id="registerBtn" type="submit">
+            <span>Create staff account</span>
+            <span class="arrow" aria-hidden="true">&rarr;</span>
+          </button>
+          <div id="registerMessage" class="form-message" role="alert" aria-live="polite"></div>
+        </form>
+        <div class="register-card">
+          <div>
+            <strong>Already registered?</strong>
+            <p>Return to the secure login.</p>
+          </div>
+          <a href="/auth/" class="secondary-btn">Sign in</a>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="../../shared/js/config.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<meta name="theme-color" content="#0b705d">
+	<title>Pharmacy Admin Control Center</title>
+	<link rel="stylesheet" href="../shared/css/base.css">
+	<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+	<div class="shell">
+		<aside class="sidebar" id="sidebar">
+			<div class="brand"><img class="brand-mark" src="/shared/assets/ella-afya-mark.svg" alt="Ella Afya Pharmacy"><div><h2>Ella Afya</h2><small>Admin Control Center</small></div></div>
+			<nav class="nav" aria-label="Admin navigation">
+				<a class="active" href="/admin/">⌂ <span>Dashboard</span></a>
+				<a href="/admin/pages/inventory/">▦ <span>Inventory</span></a>
+				<a href="/admin/pages/receiving/">＋ <span>Receiving</span></a>
+				<a href="/admin/pages/purchasing/">▤ <span>Purchasing</span></a>
+				<a href="/admin/pages/sales/">↗ <span>Sales</span></a>
+				<a href="/admin/pages/payments/">₭ <span>Payments</span></a>
+				<a href="/admin/pages/prescriptions/">Rx <span>Prescriptions</span></a>
+				<a href="/admin/pages/alerts/">! <span>Alerts</span></a>
+				<a href="/admin/pages/intelligence/">✦ <span>Intelligence</span></a>
+				<a href="/admin/pages/operations/">⚙ <span>Operations</span></a>
+				<a href="/admin/pages/adjustments/">± <span>Adjustments</span></a>
+				<a href="/admin/pages/approvals/">✓ <span>Approvals</span></a>
+				<a href="/admin/pages/suppliers/">♙ <span>Suppliers</span></a>
+				<a href="/admin/pages/expenses/">− <span>Expenses</span></a>
+				<a href="/admin/pages/reports/">▥ <span>Reports</span></a>
+				<a href="/admin/pages/reconciliation/">≋ <span>Reconciliation</span></a>
+				<a href="/admin/pages/users/">♧ <span>Staff</span></a>
+				<a href="/admin/pages/security/">◈ <span>Security</span></a>
+				<a href="/admin/pages/sessions/">⌘ <span>Sessions</span></a>
+				<a href="/admin/pages/settings/">⚙ <span>Settings</span></a>
+				<a href="#" id="logout">↪ <span>Sign out</span></a>
+			</nav>
+		</aside>
+		<div class="nav-backdrop" aria-hidden="true"></div>
+		<main class="content">
+			<div class="mobile-top"><button class="mobile-menu" id="menuBtn" aria-label="Open navigation">☰</button><strong>Admin Command Center</strong><div class="mobile-top-actions"><button class="mobile-theme" id="mobileThemeBtn" aria-label="Toggle theme">◐</button></div></div>
+			<header class="page-head"><div><small>PHARMACY OPERATIONS</small><h1>Admin Command Center</h1><p class="muted">Live financial, inventory, and operational overview.</p></div><div class="portal-tools"><button class="btn secondary" id="refreshBtn">↻ Refresh</button></div></header>
+			<section class="cards advanced-kpis" aria-label="Today's financial summary">
+				<article class="card metric"><div class="metric-top">Paid today</div><h2 id="todayPaid">KSh 0</h2><small class="sub">Settled collections</small></article>
+				<article class="card metric"><div class="metric-top">M-Pesa</div><h2 id="todayMpesa">KSh 0</h2><small id="mpesaShare" class="sub">0%</small></article>
+				<article class="card metric"><div class="metric-top">Cash</div><h2 id="todayCash">KSh 0</h2><small class="sub">Cash collections</small></article>
+				<article class="card metric"><div class="metric-top">Net today</div><h2 id="todayNet">KSh 0</h2><small class="sub">After recorded expenses</small></article>
+				<article class="card metric"><div class="metric-top">Paid sales</div><h2 id="todaySales">0</h2><small id="todaySalesValue" class="sub">KSh 0 gross</small></article>
+				<article class="card metric"><div class="metric-top">Expenses</div><h2 id="todayExpenses">KSh 0</h2><small class="sub">Recorded today</small></article>
+			</section>
+			<section class="grid-2">
+				<article class="card"><h3>Sales and profit trends</h3><div id="weekChart" class="chart" aria-live="polite"></div><small id="chartStatus" class="muted"></small></article>
+				<article class="card"><h3>Payment mix</h3><div class="money-split"><div><small>M-Pesa</small><strong id="mixMpesa">KSh 0</strong></div><div><small>Cash</small><strong id="mixCash">KSh 0</strong></div><div><small>Other</small><strong id="mixOther">KSh 0</strong></div></div><div class="progress"><span id="paidProgress"></span></div><p>Paid <strong id="mixPaid">KSh 0</strong> · Refunded <strong id="mixRefunded">KSh 0</strong></p></article>
+			</section>
+			<section class="cards advanced-kpis">
+				<article class="card metric"><div class="metric-top">Gross profit</div><h2 id="grossProfit">KSh 0</h2><small id="cogsText" class="sub">Cost of goods: KSh 0</small></article>
+				<article class="card metric"><div class="metric-top">Average sale</div><h2 id="avgSale">KSh 0</h2></article>
+				<article class="card metric"><div class="metric-top">Pending payments</div><h2 id="pendingPayments">KSh 0</h2></article>
+				<article class="card metric"><div class="metric-top">Expiry exposure</div><h2 id="expiryValue">KSh 0</h2><small id="expiryBatches" class="sub">0 batches</small></article>
+				<article class="card metric"><div class="metric-top">Inactive sellers</div><h2 id="inactiveSellers">0</h2></article>
+				<article class="card metric"><div class="metric-top">Audit events · 24h</div><h2 id="audit24">0</h2></article>
+			</section>
+			<section class="grid-2">
+				<article class="card"><h3>Top medicines today</h3><div id="topMedicines" class="stack"></div></article>
+				<article class="card"><h3>Seller performance</h3><div id="sellerList" class="stack"></div></article>
+			</section>
+			<section class="grid-2">
+				<article class="card"><h3>Operational alerts</h3><div id="alerts" class="alert-list"></div></article>
+				<article class="card"><h3>Security and approvals</h3><div id="securitySummary" class="alert-list"></div></article>
+			</section>
+			<section class="card"><h3>Export reports</h3><div class="export-panel"><label>From<input id="fromDate" type="date"></label><label>To<input id="toDate" type="date"></label><div class="export-actions"><button class="btn secondary" id="exportSales">Sales CSV</button><button class="btn secondary" id="exportPayments">Payments CSV</button><button class="btn secondary" id="exportInventory">Inventory CSV</button><button class="btn secondary" id="exportExpenses">Expenses CSV</button></div></div></section>
+			<section class="card"><h3>Quick actions</h3><nav class="quick"><a href="/admin/pages/inventory/">Manage inventory</a><a href="/admin/pages/receiving/">Receive stock</a><a href="/admin/pages/alerts/">Review alerts</a><a href="/admin/pages/reconciliation/">Close business day</a></nav></section>
+			<p id="msg" role="status" aria-live="polite"></p>
+		</main>
+	</div>
+	<div class="session-warning" id="sessionWarning" hidden><span>Your session is about to expire. Move the mouse or press a key to stay signed in.</span><button class="btn secondary" id="stayBtn">Stay signed in</button></div>
+	<script src="../shared/js/config.js"></script><script type="module" src="./js/dashboard.js"></script><script src="../shared/js/ui.js"></script>
+</body>
+</html>

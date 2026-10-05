@@ -1,0 +1,2 @@
+.alert-item{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:16px 0;border-bottom:1px solid var(--border)}.alert-item:last-child{border-bottom:0}.alert-item small{display:block;margin-top:6px;opacity:.7}.notice{padding:12px;border-radius:12px;background:rgba(184,59,69,.08)}
+.alerts-shell .card{box-shadow:0 16px 42px rgba(10,55,46,.08)}

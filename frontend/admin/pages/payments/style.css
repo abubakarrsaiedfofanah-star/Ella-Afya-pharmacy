@@ -1,0 +1,1 @@
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:20px}.form-grid input,.form-grid button{padding:11px;border:1px solid #dce2ea;border-radius:9px}.form-grid button{background:#0b6b57;color:white;font-weight:700}.table-wrap{overflow:auto}

@@ -1,0 +1,6 @@
+.table-wrap .table{min-width:760px}
+.table-wrap small{display:inline-block;max-width:340px;overflow-wrap:anywhere;color:var(--muted)}
+
+@media(max-width:600px){
+  .table-wrap .table{min-width:700px}
+}

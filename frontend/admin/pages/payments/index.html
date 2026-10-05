@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<title>Transaction Activity</title>
+	<link rel="stylesheet" href="../../../shared/css/base.css">
+	<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+	<div class="shell">
+		<aside class="sidebar">
+			<div class="brand"><img class="brand-mark" src="/shared/assets/ella-afya-mark.svg" alt="Ella Afya Pharmacy"><div><h2>Ella Afya</h2><small>Admin Control Center</small></div></div>
+			<nav class="nav" aria-label="Admin navigation">
+				<a href="/admin/">Dashboard</a><a href="/admin/pages/inventory/">Inventory</a><a href="/admin/pages/receiving/">Stock Receiving</a><a href="/admin/pages/prescriptions/">Prescriptions</a><a href="/admin/pages/approvals/">Approvals</a><a href="/admin/pages/sales/">Sales</a><a class="active" href="/admin/pages/payments/">Transactions</a><a href="/admin/pages/reports/">Reports</a><a href="/admin/pages/security/">Security</a><a href="/admin/pages/users/">Sellers</a>
+			</nav>
+		</aside>
+		<div class="nav-backdrop" aria-hidden="true"></div>
+		<main class="content">
+			<div class="mobile-top"><button class="mobile-menu" id="menuBtn" type="button" aria-label="Open navigation" aria-expanded="false">☰</button><strong>Transaction activity</strong><button class="mobile-theme" id="mobileThemeBtn" type="button" aria-label="Toggle theme">◐</button></div>
+			<header class="page-head"><div><small>ADMIN TRANSACTION MONITOR</small><h1>Transaction activity</h1><p class="muted">Sales, payment attempts, confirmations, failures, refunds and cancellations.</p></div><div class="portal-tools"><button class="btn secondary" id="refreshTransactions" type="button">↻ Refresh</button></div></header>
+			<section class="cards"><article class="card metric"><div class="metric-top">Loaded transactions</div><h2 id="transactionCount">0</h2><small class="sub">Latest 200 payment records</small></article><article class="card metric"><div class="metric-top">Paid amount shown</div><h2 id="paidAmount">KSh 0</h2><small class="sub">Current loaded records</small></article></section>
+			<div class="toolbar"><label class="visually-hidden" for="transactionSearch">Search transactions</label><input id="transactionSearch" type="search" placeholder="Search sale, seller, method, status or reference" autocomplete="off"></div>
+			<p id="transactionStatus" class="muted" role="status" aria-live="polite">Loading transactions…</p>
+			<div class="table-wrap"><table class="table"><thead><tr><th>Time</th><th>Sale</th><th>Seller</th><th>Amount</th><th>Method</th><th>Status</th><th>Reference</th><th>M-Pesa receipt</th></tr></thead><tbody id="rows"></tbody></table></div>
+			<div class="portal-tools"><button class="btn secondary" id="loadOlderTransactions" type="button" hidden>Load older transactions</button></div>
+		</main>
+	</div>
+	<script src="../../../shared/js/config.js"></script><script type="module" src="./app.js"></script><script src="../../../shared/js/ui.js"></script>
+</body>
+</html>

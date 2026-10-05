@@ -1,0 +1,10 @@
+@import url("./auth.css");
+@import url("./brand.css");
+
+#loginForm{display:grid;gap:15px}
+#loginForm .auth-btn{margin-top:3px}
+#loginForm .form-message:empty{display:none}
+
+@media(max-width:900px){
+  #loginForm{gap:13px}
+}

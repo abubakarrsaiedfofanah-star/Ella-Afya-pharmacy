@@ -1,0 +1,43 @@
+.pos-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}.medicine{display:flex;justify-content:space-between;padding:12px;border-bottom:1px solid #eee}.medicine button{padding:7px}@media(max-width:800px){.pos-grid{grid-template-columns:1fr}}
+
+/* Premium POS refresh */
+.pos-grid{align-items:start}.pos-grid>.card{border-radius:20px;box-shadow:0 16px 45px rgba(10,55,46,.08)}
+.pos-grid .card:first-child{background:linear-gradient(145deg,#ffffff,#f8fcfa)}
+.medicine{border-radius:12px;margin:2px 0}.medicine button{border:1px solid #cfe3dc!important;background:#eef8f4!important;color:#075d4d!important;border-radius:10px!important;font-weight:800;transition:.15s}.medicine button:hover{transform:translateY(-1px);background:#dff4ec!important}
+@media(max-width:800px){.pos-grid{gap:14px}}
+
+/* Mobile-first POS interaction layer */
+.pos-grid{grid-template-columns:minmax(0,1.35fr) minmax(320px,.9fr)}
+#search{width:100%;font-size:16px}
+#medicines{display:grid;gap:4px;margin-top:14px;max-height:52vh;overflow:auto;padding-right:3px}
+.medicine{min-height:62px}
+#cart{max-height:42vh;overflow:auto}
+#checkout{width:100%;min-height:50px;margin-top:12px;font-size:15px;font-weight:850}
+@media(max-width:900px){
+  .pos-grid{grid-template-columns:1fr;gap:12px}
+  .pos-grid>.card{position:static!important}
+  .pos-grid>.card:first-child{min-height:0}
+  #medicines{max-height:38vh}
+  #cart{max-height:34vh}
+}
+@media(max-width:560px){
+  .pos-grid{margin-top:8px}
+  .pos-grid>.card{padding:14px;border-radius:16px}
+  .medicine{padding:12px 6px;gap:8px}
+  .medicine button{min-width:44px;min-height:44px}
+  #method,#phone,#reference{width:100%;margin-top:8px}
+}
+.stock-warning{color:#a34c00;font-weight:800}
+.medicine.low-stock{background:#fffaf1;border:1px solid #f4dfb7}
+.quantity-control button:disabled{opacity:.45;cursor:not-allowed}
+.quantity-control .remove-line{width:auto;padding:0 9px;color:#9a342d;border-radius:8px}
+.cart-line{gap:12px}
+.till-instructions{margin:12px 0;padding:14px;border:1px solid #c9e2d8;border-radius:14px;background:#f1faf6}
+.till-instructions p{margin:6px 0}
+.till-instructions dl{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.till-instructions dl div{padding:8px;border-radius:9px;background:#fff}
+.till-instructions dt{font-size:12px;color:#49635b}
+.till-instructions dd{margin:3px 0 0;font-weight:800;overflow-wrap:anywhere}
+.till-instructions small{display:block;line-height:1.45;color:#76520c}
+.till-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.till-instructions dl{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}

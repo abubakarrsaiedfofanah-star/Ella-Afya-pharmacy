@@ -1,0 +1,1 @@
+document.querySelector('#printReport')?.addEventListener('click', () => window.print());

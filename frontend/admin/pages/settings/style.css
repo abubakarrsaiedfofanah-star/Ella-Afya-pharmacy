@@ -1,0 +1,6 @@
+#form{align-items:start}
+#form .btn{align-self:end}
+
+@media(max-width:600px){
+  #form .btn{width:100%}
+}

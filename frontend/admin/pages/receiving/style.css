@@ -1,0 +1,1 @@
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}input,select,button{padding:10px;border:1px solid #d6dce5;border-radius:8px}button{cursor:pointer}#lines{display:grid;gap:8px;margin:14px 0}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px;border-bottom:1px solid #e8ebef;text-align:left}

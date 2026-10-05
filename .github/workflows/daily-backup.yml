@@ -1,0 +1,22 @@
+name: Daily Supabase Backup
+on:
+  schedule:
+    - cron: '15 1 * * *'
+  workflow_dispatch:
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: supabase/setup-cli@v1
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          test -n "$SUPABASE_DB_URL"
+          mkdir -p backups
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "backups/pharmacy-$(date -u +%Y-%m-%d).sql"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-database-backup-${{ github.run_id }}
+          path: backups/*.sql
+          retention-days: 30

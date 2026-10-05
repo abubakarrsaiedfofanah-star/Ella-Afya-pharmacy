@@ -1,0 +1,4 @@
+import {supabase} from '../shared/js/supabase.js';
+const number=document.querySelector('#number'),result=document.querySelector('#result');
+async function verify(){const n=number.value.trim();if(!n){result.textContent='Enter a receipt number.';return}const {data,error}=await supabase.from('receipt_verification').select('sale_number,total_amount,status,created_at').eq('sale_number',n).maybeSingle();if(error||!data){result.textContent='Receipt not found.';return}const lines=[['Receipt',data.sale_number],['Amount',`KSh ${Number(data.total_amount).toLocaleString()}`],['Status',data.status],['Date',new Date(data.created_at).toLocaleString()]];result.replaceChildren(...lines.map(([label,value])=>{const p=document.createElement('p'),strong=document.createElement('strong');p.append(`${label}: `);strong.textContent=String(value);p.append(strong);return p}))}
+document.querySelector('#verify').onclick=verify;

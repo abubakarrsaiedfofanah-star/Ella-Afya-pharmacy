@@ -1,0 +1,7 @@
+.content>.grid-2{align-items:start}
+.content>.grid-2>.card{min-width:0}
+.content .grid-2 .btn{margin-top:8px}
+
+@media(max-width:600px){
+  .content .grid-2 .btn{width:100%}
+}

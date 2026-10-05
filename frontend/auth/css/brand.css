@@ -1,0 +1,24 @@
+.brand-logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  object-fit: contain;
+}
+
+.auth-brand strong,
+.mobile-brand strong {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: 0;
+}
+
+.auth-brand strong {
+  font-size: 19px;
+}
+
+.mobile-brand strong {
+  font-size: 18px;
+}

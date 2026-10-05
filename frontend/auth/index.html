@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b705d">
+  <meta name="description" content="Secure staff sign in for Ella Afya Pharmacy.">
+  <title>Sign In | Ella Afya Pharmacy</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-shell">
+    <section class="auth-visual" aria-label="Ella Afya Pharmacy">
+      <div class="auth-brand">
+        <img class="brand-logo" src="/shared/assets/ella-afya-mark.svg" alt="" aria-hidden="true">
+        <div>
+          <strong>Ella Afya Pharmacy</strong>
+          <small>Pharmacy Management System</small>
+        </div>
+      </div>
+      <div class="visual-copy">
+        <span class="eyebrow">SECURE PHARMACY OPERATIONS</span>
+        <h1>Run your pharmacy with <em>clarity.</em></h1>
+        <p>Manage medicines, prescriptions, sales, payments, stock and staff from one protected workspace.</p>
+      </div>
+      <div class="security-strip">
+        <span>Role-based access</span>
+        <span>Audit protected</span>
+        <span>Secure payments</span>
+      </div>
+    </section>
+    <main class="auth-panel">
+      <div class="auth-panel-inner">
+        <div class="mobile-brand">
+          <img class="brand-logo" src="/shared/assets/ella-afya-mark.svg" alt="" aria-hidden="true">
+          <strong>Ella Afya Pharmacy</strong>
+        </div>
+        <div class="form-heading">
+          <span class="eyebrow">WELCOME BACK</span>
+          <h2>Sign in to your workspace</h2>
+          <p>Use your authorized staff account to continue.</p>
+        </div>
+        <form id="loginForm">
+          <label for="email">Email address
+            <input id="email" name="email" type="email" autocomplete="username" placeholder="name@pharmacy.com" required>
+          </label>
+          <label for="password">Password
+            <div class="password-field">
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+              <button type="button" class="eye" id="togglePassword" aria-label="Show password">&#9673;</button>
+            </div>
+          </label>
+          <div class="form-row">
+            <label class="check" for="remember">
+              <input id="remember" type="checkbox" checked>
+              <span>Keep me signed in</span>
+            </label>
+            <a href="/auth/reset/">Forgot password?</a>
+          </div>
+          <button class="auth-btn" id="loginBtn" type="submit">
+            <span>Sign in securely</span>
+            <span class="arrow" aria-hidden="true">&rarr;</span>
+          </button>
+          <div id="loginMessage" class="form-message" role="alert" aria-live="polite"></div>
+        </form>
+        <div class="divider"><span>Staff access</span></div>
+        <div class="register-card">
+          <div>
+            <strong>Need a staff account?</strong>
+            <p>Registration requires an authorized staff invitation.</p>
+          </div>
+          <a href="/auth/register/" class="secondary-btn">Register</a>
+        </div>
+        <p class="security-note">Your role controls what you can view and change. Financial and stock actions are validated on the server.</p>
+      </div>
+    </main>
+  </div>
+  <script src="../shared/js/config.js"></script>
+  <script type="module" src="./js/login.js"></script>
+</body>
+</html>

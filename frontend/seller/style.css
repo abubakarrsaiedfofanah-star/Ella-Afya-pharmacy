@@ -1,0 +1,6 @@
+.content>.page-head{max-width:1100px}
+.content>.page-head h1{max-width:14ch}
+
+@media(max-width:900px){
+  .content>.page-head h1{max-width:none}
+}

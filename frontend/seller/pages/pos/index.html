@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+	<meta name="theme-color" content="#0b705d">
+	<title>New Sale | Ella Afya</title>
+	<link rel="stylesheet" href="../../../shared/css/base.css">
+	<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+	<div class="shell">
+		<aside class="sidebar" id="sidebar">
+			<div class="brand"><img class="brand-mark" src="/shared/assets/ella-afya-mark.svg" alt="Ella Afya Pharmacy"><div><h2>Ella Afya</h2><small>Seller Workspace</small></div></div>
+			<nav class="nav" aria-label="Seller navigation">
+				<a href="/seller/">Dashboard</a><a class="active" href="/seller/pages/pos/" aria-current="page">New Sale</a>
+				<a href="/seller/pages/prescriptions/">Prescriptions</a><a href="/seller/pages/receipts/">Receipts</a>
+				<a href="/seller/pages/shift/">My Shift</a><a href="#" id="logout">Logout</a>
+			</nav>
+		</aside>
+		<main class="content">
+			<div class="mobile-top"><strong>Ella Afya Seller</strong><button class="mobile-menu" id="menuBtn" type="button" aria-label="Open navigation" aria-expanded="false">☰</button></div>
+			<div class="page-head"><div><small>Point of sale</small><h1>New Sale</h1><div class="muted">Scan, search and build a fast checkout.</div></div><div class="portal-tools"><button class="btn outline" id="themeBtn" type="button">◐ Theme</button></div></div>
+			<div class="pos-grid">
+				<section class="card medicine-panel" aria-labelledby="medicineTitle">
+					<div class="page-head"><div><h2 id="medicineTitle">Medicines</h2><small class="muted">Barcode scanners work as keyboard input.</small></div><div class="portal-tools"><button class="btn secondary" id="hold" type="button">Hold sale</button><button class="btn secondary" id="holds" type="button">Held sales</button></div></div>
+					<label class="visually-hidden" for="search">Search medicines or scan barcode</label>
+					<input id="search" type="search" autocomplete="off" placeholder="Search name, generic, brand or barcode" autofocus>
+					<label class="field-label" for="prescription">Prescription</label>
+					<select id="prescription"><option value="">No prescription</option></select>
+					<div id="medicines" aria-live="polite"><div class="skeleton medicine-skeleton"></div><div class="skeleton medicine-skeleton"></div><div class="skeleton medicine-skeleton"></div></div>
+				</section>
+				<section class="card cart-panel" aria-labelledby="cartTitle">
+					<div class="cart-heading"><h2 id="cartTitle">Current sale</h2><span class="pill" id="cartCount">0 items</span></div>
+					<div id="cart"><p class="muted">Loading cart…</p></div>
+					<div class="sale-total"><span>Total due</span><strong id="total">KSh 0</strong></div>
+					<label class="field-label" for="method">Payment method</label>
+					<select id="method"><option value="mpesa">M-Pesa Till</option><option value="cash">Cash</option><option value="other">Other</option></select>
+					<label class="field-label" for="customerName">Buyer name (optional)</label>
+					<input id="customerName" maxlength="120" autocomplete="name" placeholder="Name for the sale record">
+					<label class="field-label" for="customerPhone">Buyer phone (optional)</label>
+					<input id="customerPhone" maxlength="32" inputmode="tel" autocomplete="tel" placeholder="Phone linked to the payment">
+					<section id="tillInstructions" class="till-instructions" hidden aria-live="polite"><strong>Customer payment by Till</strong><p>Ask the customer to pay the amount shown and use the sale reference if prompted.</p><dl><div><dt>Till number</dt><dd id="tillNumber">Not configured</dd></div><div><dt>Amount</dt><dd id="tillAmount">KSh 0</dd></div><div><dt>Sale reference</dt><dd id="tillReference">—</dd></div></dl><div class="till-actions"><button class="btn secondary" id="copyTillDetails" type="button">Copy payment details</button><button class="btn secondary" id="checkTillPayment" type="button">Check payment status</button></div><small>Sale stays pending until a verified Till payment callback confirms it. Do not release the medicine before confirmation.</small></section>
+					<input id="phone" inputmode="tel" autocomplete="tel" placeholder="Phone to receive an STK prompt" aria-label="M-Pesa phone number for STK prompt">
+					<label class="field-label" for="paymentAmount" id="amountLabel">Amount received</label>
+					<input id="paymentAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter amount received">
+					<input id="reference" autocomplete="off" placeholder="Cash or other payment reference" aria-label="Cash or other payment reference">
+					<button class="btn checkout-button" id="checkout" type="button">Continue to payment</button>
+					<div id="outstanding" class="pill outstanding" role="status">Outstanding: KSh 0</div>
+					<div class="hold-entry"><label class="field-label" for="holdReference">Hold reference</label><input id="holdReference" autocomplete="off" placeholder="Customer name or short reference"></div>
+					<div id="heldList" hidden class="stack"></div>
+					<p id="msg" role="status" aria-live="polite"></p>
+					<section id="receiptPreview" class="receipt-preview" aria-labelledby="receiptTitle" hidden>
+						<div class="receipt-heading"><h3 id="receiptTitle">Payment confirmed</h3><button class="btn secondary" id="printReceipt" type="button">Print receipt</button></div>
+						<div id="receiptBody"></div>
+					</section>
+				</section>
+			</div>
+		</main>
+	</div>
+	<script src="../../../shared/js/config.js"></script>
+	<script type="module" src="./app.js"></script>
+	<script src="../../../shared/js/ui.js"></script>
+</body>
+</html>

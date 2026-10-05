@@ -1,0 +1,9 @@
+@import url("../css/register.css");
+@import url("../css/touch.css");
+
+#strength{--strength-progress:0%;--strength-color:#c98217;display:grid;gap:8px;margin:0;padding:0 0 12px;text-align:left;background-image:linear-gradient(var(--strength-color),var(--strength-color)),linear-gradient(#e4ece9,#e4ece9);background-position:left bottom,left bottom;background-repeat:no-repeat;background-size:var(--strength-progress) 5px,100% 5px;transition:background-size .18s ease}
+#strength[data-level="weak"]{--strength-color:#d84c4c;color:#b83b45}
+#strength[data-level="good"]{--strength-color:#c98217;color:#8a5c15}
+#strength[data-level="strong"]{--strength-color:#16a085;color:#176c58}
+
+@media(prefers-reduced-motion:reduce){#strength{transition:none}}
