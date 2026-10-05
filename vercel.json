@@ -6,6 +6,14 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/auth/register",
+      "destination": "/frontend/auth/register/index.html"
+    },
+    {
+      "source": "/auth/register/",
+      "destination": "/frontend/auth/register/index.html"
+    },
+    {
       "source": "/",
       "destination": "/frontend/auth/"
     },
