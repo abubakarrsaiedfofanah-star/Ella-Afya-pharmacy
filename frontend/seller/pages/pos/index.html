@@ -36,16 +36,17 @@
 					<div id="cart"><p class="muted">Loading cart…</p></div>
 					<div class="sale-total"><span>Total due</span><strong id="total">KSh 0</strong></div>
 					<label class="field-label" for="method">Payment method</label>
-					<select id="method"><option value="mpesa">M-Pesa PayBill</option><option value="cash">Cash</option><option value="other">Other</option></select>
+					<select id="method"><option value="mpesa">Manual M-Pesa PayBill</option><option value="cash">Cash</option><option value="other">Other manual payment</option></select>
 					<label class="field-label" for="customerName">Buyer name (optional)</label>
 					<input id="customerName" maxlength="120" autocomplete="name" placeholder="Name for the sale record">
 					<label class="field-label" for="customerPhone">Buyer phone (optional)</label>
 					<input id="customerPhone" maxlength="32" inputmode="tel" autocomplete="tel" placeholder="Phone linked to the payment">
-					<section id="tillInstructions" class="till-instructions" hidden aria-live="polite"><strong>Customer payment by PayBill</strong><p>Ask the customer to pay the exact amount shown. Check the transaction in your M-PESA message or statement before entering its code.</p><dl><div><dt>PayBill number</dt><dd id="tillNumber">Not configured</dd></div><div><dt>Account number</dt><dd id="tillReference">—</dd></div><div><dt>Sale / order ID</dt><dd id="tillOrderNumber">Create sale first</dd></div><div><dt>Amount due</dt><dd id="tillAmount">KSh 0</dd></div></dl><div class="till-actions"><button class="btn secondary" id="copyTillDetails" type="button">Copy payment details</button></div><small>The system checks the exact amount and prevents code reuse. Without Daraja API verification, staff must check the payment in the M-PESA statement. Stock changes only after the payment is confirmed here.</small></section>
+					<section id="tillInstructions" class="till-instructions" hidden aria-live="polite"><strong>Manual M-Pesa PayBill</strong><p>Give the customer these details. After they pay, check the transaction in the pharmacy M-Pesa message or statement before entering its code.</p><dl><div><dt>PayBill number</dt><dd id="tillNumber">Not configured</dd></div><div><dt>Account number</dt><dd id="tillReference">—</dd></div><div><dt>Sale / order ID</dt><dd id="tillOrderNumber">Create sale first</dd></div><div><dt>Amount due</dt><dd id="tillAmount">KSh 0</dd></div></dl><div class="till-actions"><button class="btn secondary" id="copyTillDetails" type="button">Copy payment details</button></div><small>This is manual confirmation; no payment API is connected. The server checks the exact amount and blocks reused codes. Stock updates only after verification succeeds.</small></section>
 					<label class="field-label" for="mpesaTransactionCode" id="transactionCodeLabel" hidden>M-PESA transaction code</label>
 					<input id="mpesaTransactionCode" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="Enter the code from the M-PESA message" hidden>
 					<label class="field-label" for="paymentAmount" id="amountLabel">Amount received</label>
 					<input id="paymentAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter amount received">
+					<p id="manualPaymentHint" class="muted" aria-live="polite" hidden></p>
 					<input id="reference" autocomplete="off" placeholder="Cash or other payment reference" aria-label="Cash or other payment reference">
 					<button class="btn checkout-button" id="checkout" type="button">Continue to payment</button>
 					<div id="outstanding" class="pill outstanding" role="status">Outstanding: KSh 0</div>

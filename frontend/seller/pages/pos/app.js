@@ -7,6 +7,8 @@ let batches=[];
 let cart=[];
 let activeSaleId=null;
 let outstanding=0;
+let lastCashTendered=0;
+let lastCashChange=0;
 let configuredPaybillNumber='';
 let configuredPaybillAccountNumber='';
 const $=selector=>document.querySelector(selector);
@@ -30,7 +32,7 @@ async function load(){
     supabase.from('pharmacy_settings').select('paybill_number,paybill_account_number,till_number').maybeSingle()
   ]);
   if(medicineError){message.textContent=medicineError.message;return}
-  medicines=medicineData||[];batches=batchData||[];configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';
+  medicines=medicineData||[];batches=batchData||[];if(!activeSaleId)cart=cart.map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return current?{...line,price:Number(current.selling_price)}:line});configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';
   prescription.innerHTML='<option value="">No prescription</option>'+(prescriptionData||[]).map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.prescription_number)} — ${escapeHtml(item.patient_name)}</option>`).join('');
   const preset=new URLSearchParams(location.search).get('prescription');if(preset)prescription.value=preset;
   renderMedicines();renderCart();
@@ -114,6 +116,10 @@ function updatePaymentFields(){
   $('#reference').hidden=isMpesa;$('#paymentAmount').hidden=false;$('#amountLabel').hidden=false;
   $('#paymentAmount').readOnly=isMpesa&&!activeSaleId;
   $('#amountLabel').textContent=isMpesa&&activeSaleId?'Amount received':'Sale amount';
+  if(!isMpesa)$('#amountLabel').textContent=$('#method').value==='cash'?'Cash tendered':'Payment amount';
+  $('#paymentAmount').placeholder=$('#method').value==='cash'?'Enter cash received':'Enter amount received';
+  $('#manualPaymentHint').textContent=isMpesa?'Manual verification: compare the receipt code and exact amount with your M-Pesa message or statement. No payment API is connected.':$('#method').value==='cash'?'Enter the cash handed over. The app records only the amount due and shows any change.':'Record a manual payment; enter only the amount received.';
+  $('#manualPaymentHint').hidden=isMpesa;
   $('#checkout').textContent=isMpesa?(activeSaleId?'Verify M-PESA and complete sale':'Create pending sale'):activeSaleId?'Record payment':'Continue to payment';
 }
 $('#method').addEventListener('change',updatePaymentFields);
@@ -121,9 +127,10 @@ $('#method').addEventListener('change',updatePaymentFields);
 function showReceipt(saleId,saleNumber=saleId){
   const body=$('#receiptBody');
   const customerName=$('#customerName').value.trim(),customerPhone=$('#customerPhone').value.trim();
-  body.innerHTML=`<p><span>Receipt number</span><strong>${escapeHtml(saleNumber)}</strong></p>${customerName?`<p><span>Buyer</span><strong>${escapeHtml(customerName)}</strong></p>`:''}${customerPhone?`<p><span>Buyer phone</span><strong>${escapeHtml(customerPhone)}</strong></p>`:''}<p><span>Completed</span><strong>${new Date().toLocaleString()}</strong></p>${cart.map(item=>`<p><span>${escapeHtml(item.name)} × ${item.quantity}</span><strong>${money(item.price*item.quantity)}</strong></p>`).join('')}<p class="receipt-grand-total"><span>Total paid</span><strong>${money(cart.reduce((sum,item)=>sum+item.price*item.quantity,0))}</strong></p><small>Official receipt details are available in Receipts.</small>`;
+  body.innerHTML=`<p><span>Receipt number</span><strong>${escapeHtml(saleNumber)}</strong></p>${customerName?`<p><span>Buyer</span><strong>${escapeHtml(customerName)}</strong></p>`:''}${customerPhone?`<p><span>Buyer phone</span><strong>${escapeHtml(customerPhone)}</strong></p>`:''}<p><span>Completed</span><strong>${new Date().toLocaleString()}</strong></p>${cart.map(item=>`<p><span>${escapeHtml(item.name)} × ${item.quantity}</span><strong>${money(item.price*item.quantity)}</strong></p>`).join('')}<p class="receipt-grand-total"><span>Total paid</span><strong>${money(cart.reduce((sum,item)=>sum+item.price*item.quantity,0))}</strong></p>${lastCashTendered>0?`<p><span>Cash received</span><strong>${money(lastCashTendered)}</strong></p><p><span>Change</span><strong>${money(lastCashChange)}</strong></p>`:''}<small>Official receipt details are available in Receipts.</small>`;
   $('#receiptPreview').hidden=false;
   $('#receiptPreview').scrollIntoView({behavior:'smooth',block:'nearest'});
+  lastCashTendered=0;lastCashChange=0;
 }
 async function loadReceiptReference(saleId){const {data}=await supabase.from('sales').select('sale_number,total_amount,status,created_at').eq('id',saleId).single();return data?.status==='paid'?data:null}
 async function completeMpesaSale(saleId){
@@ -148,9 +155,10 @@ $('#checkout').addEventListener('click',async()=>{
   if(!activeSaleId){
     if(!cart.length){message.textContent='Cart is empty.';return}
     button.disabled=true;
-    const {data:saleId,error}=await supabase.rpc('create_sale',{p_items:cart.map(item=>({medicine_id:item.id,quantity:item.quantity,batch_id:item.batch_id})),p_prescription_id:prescription.value||null});
+    const {data:saleId,error}=await supabase.rpc('create_sale',{p_items:cart.map(item=>({medicine_id:item.id,quantity:item.quantity,batch_id:item.batch_id,unit_price:item.price})),p_prescription_id:prescription.value||null});
     button.disabled=false;
     if(error){message.textContent=error.message;return}
+    if(!saleId){await load();message.textContent='A medicine price changed or did not match the current catalogue. The sale was blocked and logged for Admin review. Check the updated prices and try again.';return}
     activeSaleId=saleId;outstanding=cart.reduce((sum,item)=>sum+item.price*item.quantity,0);
     saleJustCreated=true;
   }
@@ -176,13 +184,16 @@ $('#checkout').addEventListener('click',async()=>{
     await completeMpesaSale(completedSaleId);
     return;
   }
-  const {data:remaining,error}=await supabase.rpc('add_manual_sale_payment',{p_sale_id:activeSaleId,p_method:method,p_amount:amount,p_reference:$('#reference').value.trim()||null});
+  const amountToRecord=method==='cash'?Math.min(amount,outstanding):amount;
+  const changeDue=method==='cash'?Math.max(0,amount-amountToRecord):0;
+  const {data:remaining,error}=await supabase.rpc('add_manual_sale_payment',{p_sale_id:activeSaleId,p_method:method,p_amount:amountToRecord,p_reference:$('#reference').value.trim()||null});
   button.disabled=false;
   if(error){message.textContent=error.message;return}
   outstanding=Number(remaining||0);
   if(outstanding>0){message.textContent=`Payment recorded. Remaining ${money(outstanding)}.`;renderCart();updatePaymentFields();return}
+  if(method==='cash'){lastCashTendered=amount;lastCashChange=changeDue}
   const completedSaleId=activeSaleId;
-  message.textContent='Sale fully paid. Stock update confirmed by the server.';
+  message.textContent=method==='cash'&&changeDue>0?`Sale fully paid. Return ${money(changeDue)} change. Stock update confirmed by the server.`:'Sale fully paid. Stock update confirmed by the server.';
   const confirmedSale=await loadReceiptReference(completedSaleId);
   showReceipt(completedSaleId,confirmedSale?.sale_number||completedSaleId);
   activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#customerName').value='';$('#customerPhone').value='';$('#mpesaTransactionCode').value='';

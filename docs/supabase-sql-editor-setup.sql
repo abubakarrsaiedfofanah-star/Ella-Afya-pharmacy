@@ -3252,3 +3252,6 @@ create unique index if not exists uq_profiles_single_admin
 -- by itself. PostgreSQL requires the new enum value to commit before 027 uses it.
 -- After 027 succeeds, run supabase/migrations/028_admin_lifetime_dashboard.sql
 -- separately to add the Admin lifetime revenue, profit and best-seller summary.
+-- After 028 succeeds, run supabase/migrations/029_block_and_audit_sale_price_mismatch.sql
+-- separately to reject and alert Admins about any submitted sale price that
+-- differs from the medicine catalogue price.
