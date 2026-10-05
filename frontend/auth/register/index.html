@@ -55,7 +55,10 @@
           </label>
           <div id="strength" class="security-note">Use 12–128 characters with upper/lowercase, number and symbol.</div>
           <label for="key">Registration key
-            <input id="key" type="password" required autocomplete="off" placeholder="Provided by administrator">
+            <div class="password-field">
+              <input id="key" type="password" required autocomplete="off" placeholder="Provided by administrator">
+              <button type="button" class="eye" id="toggleKey" aria-label="Show registration key" aria-controls="key">&#9673;</button>
+            </div>
           </label>
           <button class="auth-btn" id="registerBtn" type="submit">
             <span>Create Sales account</span>
