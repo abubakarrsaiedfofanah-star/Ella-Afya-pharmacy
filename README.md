@@ -84,7 +84,7 @@ Copy:
 
 and fill in the Supabase project URL and public anon key.
 
-For Vercel, set the project root to `pharmacy-full-upgrade` (the directory containing `vercel.json`). In **Project Settings → Environment Variables**, add `SUPABASE_URL` using the Supabase Project URL and `SUPABASE_ANON_KEY` using the project's public anon/publishable key. Apply both to Production (and Preview/Development if used), then redeploy. The build injects these public browser settings; the anon key is public by design and all access must remain protected by Supabase RLS. Never add a service-role key to these variables or frontend files. The build intentionally stops when either value is missing or still a placeholder.
+For this GitHub repository, set Vercel's **Root Directory** to `.` (the repository root containing `package.json` and `vercel.json`). In **Project Settings → Environment Variables**, add `SUPABASE_URL` using the Supabase Project URL and `SUPABASE_ANON_KEY` using the project's public anon/publishable key. Apply both to Production (and Preview/Development if used), then redeploy. The build injects these public browser settings; the anon key is public by design and all access must remain protected by Supabase RLS. Never add a service-role key to these variables or frontend files. The build intentionally stops when either value is missing or still a placeholder.
 
 Never put `SUPABASE_SERVICE_ROLE_KEY`, M-Pesa consumer secret, passkey or other server secrets in frontend files.
 
