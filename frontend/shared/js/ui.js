@@ -195,7 +195,7 @@
     if (logout && !event.defaultPrevented) {
       event.preventDefault();
       if (typeof window.pharmacyAuth?.signOut === 'function') window.pharmacyAuth.signOut();
-      else location.href = '/auth/';
+      else location.href = location.pathname.startsWith('/admin/') ? '/auth/admin/' : '/auth/';
       return;
     }
     const button = event.target instanceof Element ? event.target.closest('[data-prevent-double]') : null;

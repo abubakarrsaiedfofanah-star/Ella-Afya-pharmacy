@@ -10,5 +10,5 @@ form.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='';i
  try{const {error}=await supabase.functions.invoke('admin-create-user',{body:{full_name:document.querySelector('#fullName').value.trim(),email:document.querySelector('#email').value.trim().toLowerCase(),password:pw.value,registration_key:document.querySelector('#key').value}});if(error){msg.textContent='Registration could not be completed. Check the details and try again.';return}
  location.replace('/auth/?registered=1');
  }catch{msg.textContent='Registration is temporarily unavailable. Please try again.'}
- finally{btn.disabled=false;btn.removeAttribute('aria-busy');btn.querySelector('span').textContent='Create staff account'}
+ finally{btn.disabled=false;btn.removeAttribute('aria-busy');btn.querySelector('span').textContent='Create Sales account'}
 });

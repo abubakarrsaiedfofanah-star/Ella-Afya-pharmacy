@@ -3,6 +3,7 @@ import {supabase} from './supabase.js';
 const DEVICE_KEY='pharmacy_device_session';
 const IDLE_MS=20*60*1000;
 const WARNING_MS=2*60*1000;
+const loginPath=()=>location.pathname.startsWith('/admin/')||location.pathname.startsWith('/auth/mfa/')?'/auth/admin/':'/auth/';
 let heartbeatTimer=null;
 let idleTimer=null;
 let warningTimer=null;
@@ -13,7 +14,7 @@ export async function ensureDeviceSession(){
   sessionStorage.setItem(DEVICE_KEY,key);
   const label=`${navigator.platform||'Device'} · ${/Mobi|Android/i.test(navigator.userAgent)?'Mobile':'Desktop'}`;
   const {error}=await supabase.rpc('register_device_session',{p_session_key:key,p_device_label:label,p_user_agent:navigator.userAgent});
-  if(error){sessionStorage.removeItem(DEVICE_KEY);await supabase.auth.signOut();location.href='/auth/';return null;}
+  if(error){sessionStorage.removeItem(DEVICE_KEY);await supabase.auth.signOut();location.href=loginPath();return null;}
   return key;
 }
 
@@ -21,7 +22,7 @@ export async function touchDeviceSession(){
   const key=sessionStorage.getItem(DEVICE_KEY);
   if(!key)return false;
   const {data,error}=await supabase.rpc('touch_device_session',{p_session_key:key});
-  if(error||data===false){await supabase.auth.signOut();sessionStorage.removeItem(DEVICE_KEY);location.href='/auth/';return false;}
+  if(error||data===false){await supabase.auth.signOut();sessionStorage.removeItem(DEVICE_KEY);location.href=loginPath();return false;}
   return true;
 }
 
@@ -38,7 +39,7 @@ function scheduleIdle(){
   idleTimer=setTimeout(async()=>{
     await supabase.auth.signOut();
     sessionStorage.removeItem(DEVICE_KEY);
-    location.href='/auth/?reason=timeout';
+    location.href=`${loginPath()}?reason=timeout`;
   },IDLE_MS);
 }
 export function startSecurityControls(){

@@ -1,9 +1,12 @@
 import {supabase} from '../../shared/js/supabase.js';
 import {isStrongPassword,PASSWORD_POLICY_MESSAGE} from '../../shared/js/password-policy.js';
 const request=document.querySelector('#requestForm'),update=document.querySelector('#updateForm'),msg=document.querySelector('#msg'),title=document.querySelector('#title'),subtitle=document.querySelector('#subtitle');
-const showUpdate=()=>{request.style.display='none';update.style.display='grid';title.textContent='Choose a new password';subtitle.textContent='Create a strong password for your staff account.'};
+const portal=new URLSearchParams(location.search).get('portal')==='admin'?'admin':'sales';
+const loginPath=portal==='admin'?'/auth/admin/':'/auth/';
+document.querySelector('.register-card a')?.setAttribute('href',loginPath);
+const showUpdate=()=>{request.style.display='none';update.style.display='grid';title.textContent='Choose a new password';subtitle.textContent='Create a strong password for your account.'};
 const {data:{session}}=await supabase.auth.getSession();if(session)showUpdate();
 supabase.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')showUpdate()});
-request?.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='Sending…';const email=document.querySelector('#email').value.trim().toLowerCase();const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:`${location.origin}/auth/reset/`});msg.style.color=error?'#b83b45':'#17785f';msg.textContent=error?error.message:'If that account exists, a secure recovery link has been sent.'});
-update?.addEventListener('submit',async e=>{e.preventDefault();const p=document.querySelector('#newPassword').value;if(!isStrongPassword(p)){msg.textContent=PASSWORD_POLICY_MESSAGE;return}const {error}=await supabase.auth.updateUser({password:p});msg.style.color=error?'#b83b45':'#17785f';msg.textContent=error?error.message:'Password updated successfully. You can now sign in.';if(!error)setTimeout(()=>location.href='/auth/',900)});
+request?.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='Sending…';const email=document.querySelector('#email').value.trim().toLowerCase();const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:`${location.origin}/auth/reset/?portal=${portal}`});msg.style.color=error?'#b83b45':'#17785f';msg.textContent=error?error.message:'If that account exists, a secure recovery link has been sent.'});
+update?.addEventListener('submit',async e=>{e.preventDefault();const p=document.querySelector('#newPassword').value;if(!isStrongPassword(p)){msg.textContent=PASSWORD_POLICY_MESSAGE;return}const {error}=await supabase.auth.updateUser({password:p});msg.style.color=error?'#b83b45':'#17785f';msg.textContent=error?error.message:'Password updated successfully. You can now sign in.';if(!error)setTimeout(()=>location.href=loginPath,900)});
 document.querySelector('#togglePassword')?.addEventListener('click',event=>{const button=event.currentTarget,password=document.querySelector('#newPassword'),show=password.type==='password';password.type=show?'text':'password';button.setAttribute('aria-label',show?'Hide password':'Show password')});

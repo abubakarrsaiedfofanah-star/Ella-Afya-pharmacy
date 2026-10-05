@@ -3,9 +3,9 @@ import {supabase} from '../../shared/js/supabase.js';
 const msg=document.querySelector('#msg'),enroll=document.querySelector('#enroll'),challenge=document.querySelector('#challenge');
 const say=(message,ok=false)=>{msg.textContent=message;msg.style.color=ok?'#17785f':'#b83b45'};
 const {data:{user}}=await supabase.auth.getUser();
-if(!user){location.href='/auth/';throw new Error('No session')}
+if(!user){location.href='/auth/admin/';throw new Error('No session')}
 const {data:profile,error:profileError}=await supabase.from('profiles').select('role,active').eq('id',user.id).single();
-if(profileError||profile?.role!=='admin'||!profile.active){await supabase.auth.signOut();location.href='/auth/';throw new Error('Admin access required')}
+if(profileError||profile?.role!=='admin'||!profile.active){await supabase.auth.signOut();location.href='/auth/admin/';throw new Error('Admin access required')}
 
 const {data:assurance,error:assuranceError}=await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
 if(assuranceError){say('Administrator verification could not be checked. Try again.');throw assuranceError}

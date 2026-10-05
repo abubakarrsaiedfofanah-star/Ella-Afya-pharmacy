@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b705d">
+  <meta name="description" content="Secure administrator sign in for Ella Afya Pharmacy.">
+  <title>Admin Sign In | Ella Afya Pharmacy</title>
+  <link rel="stylesheet" href="/auth/style.css">
+</head>
+<body class="auth-page" data-login-role="admin">
+  <div class="auth-shell">
+    <section class="auth-visual" aria-label="Ella Afya Pharmacy administration">
+      <div class="auth-brand">
+        <img class="brand-logo" src="/shared/assets/ella-afya-mark.png" alt="" aria-hidden="true">
+        <div><strong>Ella Afya Pharmacy</strong><small>Administrator portal</small></div>
+      </div>
+      <div class="visual-copy">
+        <span class="eyebrow">SECURE ADMINISTRATION</span>
+        <h1>Lead your pharmacy with <em>confidence.</em></h1>
+        <p>Manage staff, inventory, approvals, payments, reporting and pharmacy security.</p>
+      </div>
+      <div class="security-strip"><span>Admin-only access</span><span>Authenticator MFA</span><span>Audited actions</span></div>
+    </section>
+    <main class="auth-panel">
+      <div class="auth-panel-inner">
+        <div class="mobile-brand">
+          <img class="brand-logo" src="/shared/assets/ella-afya-mark.png" alt="" aria-hidden="true">
+          <strong>Ella Afya Pharmacy</strong>
+        </div>
+        <div class="form-heading">
+          <span class="eyebrow">ADMINISTRATOR ACCESS</span>
+          <h2>Admin sign in</h2>
+          <p>Use your authorized administrator account. Multi-factor verification is required.</p>
+        </div>
+        <form id="loginForm">
+          <label for="email">Administrator email
+            <input id="email" name="email" type="email" autocomplete="username" placeholder="admin@pharmacy.com" required>
+          </label>
+          <label for="password">Password
+            <div class="password-field">
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+              <button type="button" class="eye" id="togglePassword" aria-label="Show password">&#9673;</button>
+            </div>
+          </label>
+          <div class="form-row">
+            <label class="check" for="remember"><input id="remember" type="checkbox" checked><span>Keep me signed in</span></label>
+            <a href="/auth/reset/?portal=admin">Forgot password?</a>
+          </div>
+          <button class="auth-btn" id="loginBtn" type="submit">
+            <span>Sign in to Admin</span><span class="arrow" aria-hidden="true">&rarr;</span>
+          </button>
+          <div id="loginMessage" class="form-message" role="alert" aria-live="polite"></div>
+        </form>
+        <div class="register-card">
+          <div><strong>Sales team?</strong><p>Use the Sales portal sign-in page.</p></div>
+          <a href="/auth/" class="secondary-btn">Sales sign in</a>
+        </div>
+        <p class="security-note">Administrator accounts require a second factor from an authenticator app.</p>
+      </div>
+    </main>
+  </div>
+  <script src="/shared/js/config.js"></script>
+  <script type="module" src="/auth/js/login.js"></script>
+</body>
+</html>

@@ -2,9 +2,11 @@ import { supabase } from './supabase.js';
 import { ensureDeviceSession, requireAdminMFA, startSecurityControls } from './security.js';
 
 export async function requireUser(roles = []) {
+  const adminLogin = roles.includes('admin') || location.pathname.startsWith('/admin/');
+  const loginPath = adminLogin ? '/auth/admin/' : '/auth/';
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    location.href = '/auth/';
+    location.href = loginPath;
     throw new Error('Not authenticated');
   }
 
@@ -16,7 +18,7 @@ export async function requireUser(roles = []) {
 
   if (error || !profile?.active || (roles.length && !roles.includes(profile.role))) {
     await supabase.auth.signOut();
-    location.href = '/auth/';
+    location.href = profile?.role === 'admin' ? '/auth/admin/' : '/auth/';
     throw new Error('Access denied');
   }
 
@@ -38,7 +40,7 @@ export async function signOut() {
     sessionStorage.removeItem('pharmacy_device_session');
     await supabase.auth.signOut();
   } finally {
-    location.href = '/auth/';
+    location.href = location.pathname.startsWith('/admin/') ? '/auth/admin/' : '/auth/';
   }
 }
 

@@ -149,8 +149,9 @@ Additional UI upgrades include mobile navigation, responsive export controls, th
 
 ## Authentication and Security Upgrade
 
-- `/auth/` is the secure staff login.
-- `/auth/register/` is invitation-controlled staff registration. New self-registered staff remain inactive until an administrator activates them.
+- `/auth/` is the Sales portal login.
+- `/auth/admin/` is the separate administrator login; administrator accounts require MFA.
+- `/auth/register/` is invitation-controlled Sales account registration. New self-registered Sales accounts remain inactive until an administrator activates them.
 - `/auth/reset/` provides password recovery and password update.
 - Admins can create and activate seller accounts from `/admin/pages/users/`.
 - New migration: `010_security_and_staff_management.sql`.
