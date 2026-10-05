@@ -9,10 +9,13 @@
   }
 
   let installPrompt = null;
-  const button = document.createElement('button');
+  const existingButton = document.querySelector('[data-pwa-install]');
+  const button = existingButton || document.createElement('button');
   button.type = 'button';
-  button.className = document.querySelector('.auth-panel-inner') ? 'secondary-btn pwa-install-btn' : 'btn secondary pwa-install-btn';
-  button.textContent = 'Install app';
+  if (!existingButton) {
+    button.className = document.querySelector('.auth-panel-inner') ? 'secondary-btn pwa-install-btn' : 'btn secondary pwa-install-btn';
+    button.textContent = 'Install app';
+  }
   button.hidden = true;
   button.addEventListener('click', async () => {
     if (!installPrompt) return;
@@ -24,8 +27,8 @@
 
   const host = document.querySelector('.page-head .portal-tools');
   const authHeading = document.querySelector('.auth-panel-inner .form-heading');
-  if (host) host.prepend(button);
-  else if (authHeading) authHeading.insertAdjacentElement('afterend', button);
+  if (!button.isConnected && host) host.prepend(button);
+  else if (!button.isConnected && authHeading) authHeading.insertAdjacentElement('afterend', button);
 
   window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault();
