@@ -12,7 +12,7 @@ const aliases = [
   ['/verify', '/frontend/verify'],
   ['/shared', '/frontend/shared']
 ];
-const types = { '.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon' };
+const types = { '.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.webmanifest':'application/manifest+json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon' };
 
 function resolveUrl(urlPath) {
   let p;
@@ -24,6 +24,8 @@ function resolveUrl(urlPath) {
   if (!p.startsWith('/') || p.includes('\0')) return null;
   p = p.replace(/\\/g, '/');
   if (p === '/') p = '/frontend/auth/';
+  if (p === '/sw.js') p = '/frontend/sw.js';
+  if (p === '/manifest.webmanifest') p = '/frontend/manifest.webmanifest';
   for (const [from, to] of aliases) if (p === from || p.startsWith(from + '/')) { p = to + p.slice(from.length); break; }
   let file = path.resolve(root, p.replace(/^\/+/, ''));
   const isInsideRoot = candidate => {
@@ -61,6 +63,16 @@ http.createServer((req, res) => {
       'Content-Security-Policy':"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://esm.sh; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co;"
     });
     if (req.method === 'HEAD') return res.end();
+    if (ext === '.html') {
+      let html = fs.readFileSync(file, 'utf8');
+      const tags = [];
+      if (!/<link\b[^>]*\brel=["']manifest["']/i.test(html)) tags.push('<link rel="manifest" href="/manifest.webmanifest">');
+      if (!/<meta\b[^>]*\bname=["']theme-color["']/i.test(html)) tags.push('<meta name="theme-color" content="#0b705d">');
+      if (!/<link\b[^>]*\brel=["']apple-touch-icon["']/i.test(html)) tags.push('<link rel="apple-touch-icon" href="/shared/assets/pwa-192.png">');
+      if (!/<script\b[^>]*\bsrc=["']\/shared\/js\/pwa\.js["']/i.test(html)) tags.push('<script src="/shared/js/pwa.js" defer></script>');
+      if (tags.length) html = html.replace(/<\/head>/i, `  ${tags.join('\n  ')}\n</head>`);
+      return res.end(html);
+    }
     fs.createReadStream(file).pipe(res);
   } catch (err) {
     res.writeHead(500, {'Content-Type':'text/plain; charset=utf-8'}); res.end('Server error');

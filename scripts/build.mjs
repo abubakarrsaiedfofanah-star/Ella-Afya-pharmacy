@@ -20,4 +20,21 @@ await fs.cp(frontend,output,{recursive:true});
 await fs.copyFile(path.join(output,'auth','index.html'),path.join(output,'index.html'));
 const config={SUPABASE_URL:supabaseUrl,SUPABASE_ANON_KEY:anonKey,MPESA_FUNCTION_NAME:'mpesa-stk'};
 await fs.writeFile(path.join(output,'shared','js','config.js'),`window.APP_CONFIG = ${JSON.stringify(config,null,2)};\n`,'utf8');
+
+async function addPwaTags(directory){
+  for(const entry of await fs.readdir(directory,{withFileTypes:true})){
+    const file=path.join(directory,entry.name);
+    if(entry.isDirectory()){await addPwaTags(file);continue;}
+    if(!entry.isFile()||!entry.name.endsWith('.html'))continue;
+    let html=await fs.readFile(file,'utf8');
+    const tags=[];
+    if(!/<link\b[^>]*\brel=["']manifest["']/i.test(html))tags.push('<link rel="manifest" href="/manifest.webmanifest">');
+    if(!/<meta\b[^>]*\bname=["']theme-color["']/i.test(html))tags.push('<meta name="theme-color" content="#0b705d">');
+    if(!/<link\b[^>]*\brel=["']apple-touch-icon["']/i.test(html))tags.push('<link rel="apple-touch-icon" href="/shared/assets/pwa-192.png">');
+    if(!/<script\b[^>]*\bsrc=["']\/shared\/js\/pwa\.js["']/i.test(html))tags.push('<script src="/shared/js/pwa.js" defer></script>');
+    if(tags.length)html=html.replace(/<\/head>/i,`  ${tags.join('\n  ')}\n</head>`);
+    await fs.writeFile(file,html,'utf8');
+  }
+}
+await addPwaTags(output);
 console.log('Static pharmacy site built into dist/.');

@@ -100,6 +100,7 @@ Never put `SUPABASE_SERVICE_ROLE_KEY`, M-Pesa consumer secret, passkey or other 
 7. For Daraja C2B notifications, register the C2B callback URLs using `npm run mpesa:register-c2b`.
 8. Deploy the frontend to Vercel.
 9. Copy `config.example.js` to `config.js` and set the public Supabase values.
+10. The build adds the PWA manifest, install metadata and root service worker to every page. The service worker caches only static app assets; it never caches Supabase API data, authentication state, or HTML pages. Install from the browser's app/install menu (or the app's Install button when supported).
 
 ## Security model
 The browser is not trusted with stock or money decisions. Seller direct insert policies for sales, sale items, prescriptions and shifts are removed in migration 006. Sensitive transitions go through server-side transactions that validate:

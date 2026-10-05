@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Ella Afya Pharmacy Management",
+  "short_name": "Ella Afya",
+  "description": "Secure pharmacy inventory, sales, prescriptions and business management.",
+  "start_url": "/auth/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f8f7",
+  "theme_color": "#0b705d",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/shared/assets/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/shared/assets/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
