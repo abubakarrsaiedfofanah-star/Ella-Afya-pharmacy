@@ -6,11 +6,11 @@ const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const supabaseUrl=String(process.env.SUPABASE_URL||'').trim();
 const anonKey=String(process.env.SUPABASE_ANON_KEY||'').trim();
 
-if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(supabaseUrl)){
-  throw new Error('Set SUPABASE_URL to your HTTPS Supabase project URL before building.');
-}
-if(!anonKey||/YOUR_PUBLIC_ANON_KEY|YOUR-PROJECT/i.test(anonKey)){
-  throw new Error('Set SUPABASE_ANON_KEY to your Supabase public anon/publishable key before building.');
+const missing=[];
+if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(supabaseUrl)) missing.push('SUPABASE_URL');
+if(!anonKey||/YOUR_PUBLIC_ANON_KEY|YOUR-PROJECT/i.test(anonKey)) missing.push('SUPABASE_ANON_KEY');
+if(missing.length){
+  throw new Error(`Missing valid deployment environment variable(s): ${missing.join(', ')}. Add the Supabase Project URL and public anon/publishable key in Vercel → Project Settings → Environment Variables, then redeploy. Do not use a service-role key.`);
 }
 
 const frontend=path.join(root,'frontend');

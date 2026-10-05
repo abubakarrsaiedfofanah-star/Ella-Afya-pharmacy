@@ -210,7 +210,7 @@
   if (sidebar && !sidebar.querySelector('.brand')) {
     const heading = sidebar.querySelector(':scope > h2');
     const brand = document.createElement('div'); brand.className = 'brand';
-    const logo = document.createElement('img'); logo.className = 'brand-mark'; logo.src = '/shared/assets/ella-afya-mark.svg'; logo.alt = 'Ella Afya Pharmacy';
+    const logo = document.createElement('img'); logo.className = 'brand-mark'; logo.src = '/shared/assets/ella-afya-mark.png'; logo.alt = 'Ella Afya Pharmacy';
     const copy = document.createElement('div'), name = document.createElement('h2'), subtitle = document.createElement('small');
     name.textContent = heading?.textContent?.trim() || 'Ella Afya'; subtitle.textContent = 'Pharmacy Workspace'; copy.append(name, subtitle); brand.append(logo, copy);
     heading?.remove(); sidebar.prepend(brand);

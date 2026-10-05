@@ -19,12 +19,27 @@ Deno.serve(async (req) => {
     const payload = await req.json();
     const cb = payload?.Body?.stkCallback;
     if (!cb) {
-      const saleRef = payload?.BillRefNumber || payload?.ThirdPartyTransID;
+      const accountReference = payload?.BillRefNumber;
       const amount = Number(payload?.TransAmount || 0);
-      if (!payload?.TransID || !saleRef || !amount) return json({ ResultCode: 1, ResultDesc: "C2B callback missing transaction reference" }, 400);
       const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const stage = new URL(req.url).searchParams.get("stage") || "confirmation";
+      if (stage === "validation") {
+        if (!accountReference) return json({ ResultCode: "C2B00012", ResultDesc: "Rejected" });
+        if (!Number.isFinite(amount) || amount <= 0) return json({ ResultCode: "C2B00013", ResultDesc: "Rejected" });
+        const { data: validationCode, error } = await supabase.rpc("validate_mpesa_c2b_account", { p_account_reference: String(accountReference), p_amount: amount });
+        if (error) {
+          console.error("C2B validation failed", error);
+          return json({ ResultCode: "C2B00016", ResultDesc: "Rejected" });
+        }
+        return json(validationCode === "0" ? { ResultCode: "0", ResultDesc: "Accepted" } : { ResultCode: validationCode || "C2B00016", ResultDesc: "Rejected" });
+      }
+      if (stage !== "confirmation") return json({ ResultCode: 1, ResultDesc: "Unknown C2B callback stage" }, 400);
+      if (!payload?.TransID || !accountReference || !Number.isFinite(amount) || amount <= 0) return json({ ResultCode: 1, ResultDesc: "C2B confirmation missing transaction reference" }, 400);
       const transactionTime = parseTime(payload?.TransTime);
-      const { error } = await supabase.rpc("apply_mpesa_c2b_callback", { p_receipt: String(payload.TransID), p_sale_number: String(saleRef), p_amount: amount, p_phone: payload.MSISDN ? String(payload.MSISDN).replace(/\D/g, "") : null, p_transaction_time: transactionTime, p_payload: payload });
+      const msisdn = payload?.MSISDN ? String(payload.MSISDN).replace(/\D/g, "") : "";
+      const phone = /^254[17][0-9]{8}$/.test(msisdn) ? msisdn : null;
+      const payerName = [payload?.FirstName, payload?.MiddleName, payload?.LastName].filter(Boolean).join(" ");
+      const { error } = await supabase.rpc("record_mpesa_c2b_callback", { p_receipt: String(payload.TransID), p_account_reference: String(accountReference), p_amount: amount, p_phone: phone, p_payer_name: payerName || null, p_transaction_time: transactionTime, p_payload: payload });
       if (error) {
         console.error("C2B callback processing failed", error);
         return json({ ResultCode: 1, ResultDesc: "Callback could not be processed" }, 400);

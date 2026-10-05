@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "node server.mjs",
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "mpesa:register-c2b": "node scripts/register-c2b-urls.mjs"
   }
 }

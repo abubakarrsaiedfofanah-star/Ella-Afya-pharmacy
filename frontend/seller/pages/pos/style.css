@@ -25,7 +25,7 @@
   .pos-grid>.card{padding:14px;border-radius:16px}
   .medicine{padding:12px 6px;gap:8px}
   .medicine button{min-width:44px;min-height:44px}
-  #method,#phone,#reference{width:100%;margin-top:8px}
+  #method,#mpesaTransactionCode,#paymentAmount,#reference{width:100%;margin-top:8px}
 }
 .stock-warning{color:#a34c00;font-weight:800}
 .medicine.low-stock{background:#fffaf1;border:1px solid #f4dfb7}

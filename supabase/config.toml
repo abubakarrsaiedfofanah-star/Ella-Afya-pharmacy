@@ -1,6 +1,9 @@
 [functions.mpesa-callback]
 verify_jwt = false
 
+[functions.payment-callback]
+verify_jwt = false
+
 [functions.mpesa-stk]
 verify_jwt = true
 

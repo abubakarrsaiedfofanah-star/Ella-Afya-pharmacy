@@ -44,7 +44,7 @@ create table public.inventory(
  quantity integer not null default 0 check(quantity>=0),
  location text,
  updated_at timestamptz not null default now(),
- low_stock boolean generated always as (quantity <= (select min_stock from public.medicines m where m.id=medicine_id)) stored
+ low_stock boolean not null default false
 );
 
 create table public.batches(

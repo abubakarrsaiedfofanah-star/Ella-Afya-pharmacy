@@ -13,7 +13,7 @@ body.dark{--bg:#101715;--surface:#17211e;--ink:#edf7f3;--muted:#9db1aa;--line:#2
 @media(max-width:560px){.session-warning{left:14px;right:14px;bottom:14px}.advanced-kpis{margin-top:12px}}
 
 /* Brand badge refinement: use the E&A pharmacy emblem consistently. */
-.brand img.brand-mark{display:block;flex:0 0 48px;width:48px;height:48px;padding:0;border:0;border-radius:15px;background:none;box-shadow:0 9px 24px rgba(2,35,29,.22);object-fit:contain}
+.brand img.brand-mark{display:block;flex:0 0 48px;width:48px;height:48px;padding:2px;border:1px solid rgba(255,255,255,.8);border-radius:12px;background:#fff;box-shadow:0 5px 14px rgba(2,35,29,.18);object-fit:contain}
 
 /* Consistent focus, loading, and narrow-screen behavior across both workspaces. */
 :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:3px solid #27b993;outline-offset:3px}

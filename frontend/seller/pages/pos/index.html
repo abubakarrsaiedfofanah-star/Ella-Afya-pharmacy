@@ -11,7 +11,7 @@
 <body>
 	<div class="shell">
 		<aside class="sidebar" id="sidebar">
-			<div class="brand"><img class="brand-mark" src="/shared/assets/ella-afya-mark.svg" alt="Ella Afya Pharmacy"><div><h2>Ella Afya</h2><small>Seller Workspace</small></div></div>
+			<div class="brand"><img class="brand-mark" src="/shared/assets/ella-afya-mark.png" alt="Ella Afya Pharmacy"><div><h2>Ella Afya</h2><small>Seller Workspace</small></div></div>
 			<nav class="nav" aria-label="Seller navigation">
 				<a href="/seller/">Dashboard</a><a class="active" href="/seller/pages/pos/" aria-current="page">New Sale</a>
 				<a href="/seller/pages/prescriptions/">Prescriptions</a><a href="/seller/pages/receipts/">Receipts</a>
@@ -35,13 +35,14 @@
 					<div id="cart"><p class="muted">Loading cart…</p></div>
 					<div class="sale-total"><span>Total due</span><strong id="total">KSh 0</strong></div>
 					<label class="field-label" for="method">Payment method</label>
-					<select id="method"><option value="mpesa">M-Pesa Till</option><option value="cash">Cash</option><option value="other">Other</option></select>
+					<select id="method"><option value="mpesa">M-Pesa PayBill</option><option value="cash">Cash</option><option value="other">Other</option></select>
 					<label class="field-label" for="customerName">Buyer name (optional)</label>
 					<input id="customerName" maxlength="120" autocomplete="name" placeholder="Name for the sale record">
 					<label class="field-label" for="customerPhone">Buyer phone (optional)</label>
 					<input id="customerPhone" maxlength="32" inputmode="tel" autocomplete="tel" placeholder="Phone linked to the payment">
-					<section id="tillInstructions" class="till-instructions" hidden aria-live="polite"><strong>Customer payment by Till</strong><p>Ask the customer to pay the amount shown and use the sale reference if prompted.</p><dl><div><dt>Till number</dt><dd id="tillNumber">Not configured</dd></div><div><dt>Amount</dt><dd id="tillAmount">KSh 0</dd></div><div><dt>Sale reference</dt><dd id="tillReference">—</dd></div></dl><div class="till-actions"><button class="btn secondary" id="copyTillDetails" type="button">Copy payment details</button><button class="btn secondary" id="checkTillPayment" type="button">Check payment status</button></div><small>Sale stays pending until a verified Till payment callback confirms it. Do not release the medicine before confirmation.</small></section>
-					<input id="phone" inputmode="tel" autocomplete="tel" placeholder="Phone to receive an STK prompt" aria-label="M-Pesa phone number for STK prompt">
+					<section id="tillInstructions" class="till-instructions" hidden aria-live="polite"><strong>Customer payment by PayBill</strong><p>Ask the customer to pay the exact amount shown. Check the transaction in your M-PESA message or statement before entering its code.</p><dl><div><dt>PayBill number</dt><dd id="tillNumber">Not configured</dd></div><div><dt>Account number</dt><dd id="tillReference">—</dd></div><div><dt>Sale / order ID</dt><dd id="tillOrderNumber">Create sale first</dd></div><div><dt>Amount due</dt><dd id="tillAmount">KSh 0</dd></div></dl><div class="till-actions"><button class="btn secondary" id="copyTillDetails" type="button">Copy payment details</button></div><small>The system checks the exact amount and prevents code reuse. Without Daraja API verification, staff must check the payment in the M-PESA statement. Stock changes only after the payment is confirmed here.</small></section>
+					<label class="field-label" for="mpesaTransactionCode" id="transactionCodeLabel" hidden>M-PESA transaction code</label>
+					<input id="mpesaTransactionCode" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="Enter the code from the M-PESA message" hidden>
 					<label class="field-label" for="paymentAmount" id="amountLabel">Amount received</label>
 					<input id="paymentAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter amount received">
 					<input id="reference" autocomplete="off" placeholder="Cash or other payment reference" aria-label="Cash or other payment reference">

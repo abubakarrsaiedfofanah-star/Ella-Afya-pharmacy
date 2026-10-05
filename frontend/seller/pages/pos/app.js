@@ -7,8 +7,8 @@ let batches=[];
 let cart=[];
 let activeSaleId=null;
 let outstanding=0;
-let paymentWatcher=null;
-let configuredTillNumber='';
+let configuredPaybillNumber='';
+let configuredPaybillAccountNumber='';
 const $=selector=>document.querySelector(selector);
 const list=$('#medicines');
 const cartElement=$('#cart');
@@ -27,10 +27,10 @@ async function load(){
     supabase.from('medicines').select('id,name,generic_name,brand,barcode,strength,selling_price,min_stock,prescription_required,controlled_medicine,inventory(quantity)').eq('active',true).order('name'),
     supabase.from('batches').select('id,medicine_id,batch_number,expiry_date,quantity').gte('expiry_date',new Date().toISOString().slice(0,10)).gt('quantity',0).order('expiry_date'),
     supabase.from('prescriptions').select('id,prescription_number,patient_name,status').in('status',['verified','dispensing','dispensed']).order('created_at',{ascending:false}).limit(30),
-    supabase.from('pharmacy_settings').select('till_number').maybeSingle()
+    supabase.from('pharmacy_settings').select('paybill_number,paybill_account_number,till_number').maybeSingle()
   ]);
   if(medicineError){message.textContent=medicineError.message;return}
-  medicines=medicineData||[];batches=batchData||[];configuredTillNumber=String(settings?.till_number||'').trim();$('#tillNumber').textContent=configuredTillNumber||'Ask the admin to configure the Till number';
+  medicines=medicineData||[];batches=batchData||[];configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';
   prescription.innerHTML='<option value="">No prescription</option>'+(prescriptionData||[]).map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.prescription_number)} — ${escapeHtml(item.patient_name)}</option>`).join('');
   const preset=new URLSearchParams(location.search).get('prescription');if(preset)prescription.value=preset;
   renderMedicines();renderCart();
@@ -86,6 +86,7 @@ function renderCart(){
   }));
   const total=cart.reduce((sum,item)=>sum+item.price*item.quantity,0);
   totalElement.textContent=money(total);
+  $('#tillAmount').textContent=money(total);
   $('#outstanding').textContent=`Outstanding: ${money(outstanding||total)}`;
   $('#cartCount').textContent=`${cart.reduce((sum,item)=>sum+item.quantity,0)} item${cart.reduce((sum,item)=>sum+item.quantity,0)===1?'':'s'}`;
   $('#paymentAmount').value=Number(outstanding||total).toFixed(2);
@@ -102,48 +103,40 @@ $('#search').addEventListener('keydown',event=>{
 function updatePaymentFields(){
   const isMpesa=$('#method').value==='mpesa';
   $('#tillInstructions').hidden=!isMpesa;
-  $('#phone').hidden=!isMpesa;$('#reference').hidden=isMpesa;$('#paymentAmount').hidden=isMpesa;$('#amountLabel').hidden=isMpesa;
-  $('#phone').placeholder='Optional: customer phone for an STK prompt';
-  $('#checkout').textContent=isMpesa?($('#phone').value.trim()?'Send STK prompt':'Show Till payment details'):activeSaleId?'Record payment':'Continue to payment';
+  $('#mpesaTransactionCode').hidden=!isMpesa||!activeSaleId;$('#transactionCodeLabel').hidden=!isMpesa||!activeSaleId;
+  $('#reference').hidden=isMpesa;$('#paymentAmount').hidden=false;$('#amountLabel').hidden=false;
+  $('#paymentAmount').readOnly=isMpesa&&!activeSaleId;
+  $('#amountLabel').textContent=isMpesa&&activeSaleId?'Amount received':'Sale amount';
+  $('#checkout').textContent=isMpesa?(activeSaleId?'Verify M-PESA and complete sale':'Create pending sale'):activeSaleId?'Record payment':'Continue to payment';
 }
 $('#method').addEventListener('change',updatePaymentFields);
-$('#phone').addEventListener('input',updatePaymentFields);
 
 function showReceipt(saleId,saleNumber=saleId){
   const body=$('#receiptBody');
-  const customerName=$('#customerName').value.trim(),customerPhone=$('#customerPhone').value.trim()||$('#phone').value.trim();
+  const customerName=$('#customerName').value.trim(),customerPhone=$('#customerPhone').value.trim();
   body.innerHTML=`<p><span>Receipt number</span><strong>${escapeHtml(saleNumber)}</strong></p>${customerName?`<p><span>Buyer</span><strong>${escapeHtml(customerName)}</strong></p>`:''}${customerPhone?`<p><span>Buyer phone</span><strong>${escapeHtml(customerPhone)}</strong></p>`:''}<p><span>Completed</span><strong>${new Date().toLocaleString()}</strong></p>${cart.map(item=>`<p><span>${escapeHtml(item.name)} × ${item.quantity}</span><strong>${money(item.price*item.quantity)}</strong></p>`).join('')}<p class="receipt-grand-total"><span>Total paid</span><strong>${money(cart.reduce((sum,item)=>sum+item.price*item.quantity,0))}</strong></p><small>Official receipt details are available in Receipts.</small>`;
   $('#receiptPreview').hidden=false;
   $('#receiptPreview').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 async function loadReceiptReference(saleId){const {data}=await supabase.from('sales').select('sale_number,total_amount,status,created_at').eq('id',saleId).single();return data?.status==='paid'?data:null}
-function watchMpesaPayment(saleId){
-  if(paymentWatcher)clearInterval(paymentWatcher);
-  const started=Date.now();
-  const channel=supabase.channel(`sale-payment-${saleId}`).on('postgres_changes',{event:'UPDATE',schema:'public',table:'sales',filter:`id=eq.${saleId}`},payload=>{
-    if(payload.new?.status==='paid'&&activeSaleId===saleId){clearInterval(paymentWatcher);paymentWatcher=null;channel.unsubscribe();void completeMpesaSale(saleId)}
-  }).subscribe();
-  paymentWatcher=setInterval(async()=>{
-    if(activeSaleId!==saleId||Date.now()-started>120000){clearInterval(paymentWatcher);paymentWatcher=null;channel.unsubscribe();return}
-    const sale=await loadReceiptReference(saleId);if(!sale)return;
-    clearInterval(paymentWatcher);paymentWatcher=null;channel.unsubscribe();await completeMpesaSale(saleId,sale.sale_number);
-  },2000);
-}
-async function completeMpesaSale(saleId,knownNumber){
-  const saleNumber=knownNumber||(await loadReceiptReference(saleId))?.sale_number;
+async function completeMpesaSale(saleId){
+  const saleNumber=(await loadReceiptReference(saleId))?.sale_number;
   if(activeSaleId!==saleId||!saleNumber)return;
   activeSaleId=null;
-  message.textContent='M-Pesa payment confirmed. Stock update completed by the server.';showReceipt(saleId,saleNumber);
-  outstanding=0;cart=[];prescription.value='';$('#customerName').value='';$('#customerPhone').value='';$('#phone').value='';renderCart();updatePaymentFields();await load();
+  showReceipt(saleId,saleNumber);
+  outstanding=0;cart=[];prescription.value='';$('#customerName').value='';$('#customerPhone').value='';$('#mpesaTransactionCode').value='';$('#reference').value='';renderCart();updatePaymentFields();await load();
+  message.textContent='Payment verified. Stock update completed by the server.';
 }
 $('#printReceipt').addEventListener('click',()=>window.print());
 
 $('#checkout').addEventListener('click',async()=>{
   const button=$('#checkout');if(button.disabled)return;
   const method=$('#method').value;
-  const phone=$('#phone').value.trim();
   const amount=Number($('#paymentAmount').value);
-  if(method==='mpesa'&&!phone&&!configuredTillNumber){message.textContent='Ask the admin to configure the pharmacy Till number first.';return}
+  const transactionCode=$('#mpesaTransactionCode').value.trim().toUpperCase();
+  let saleJustCreated=false;
+  if(method==='mpesa'&&(!configuredPaybillNumber||!configuredPaybillAccountNumber)){message.textContent='Ask the admin to configure the pharmacy PayBill number and account number first.';return}
+  if(method==='mpesa'&&activeSaleId&&(!transactionCode||!Number.isFinite(amount)||amount<=0)){message.textContent='Enter the M-PESA transaction code and amount received.';return}
   if(method!=='mpesa'&&(!Number.isFinite(amount)||amount<=0)){ $('#paymentAmount').focus();message.textContent='Enter a valid payment amount.';return}
   if(!activeSaleId){
     if(!cart.length){message.textContent='Cart is empty.';return}
@@ -152,21 +145,28 @@ $('#checkout').addEventListener('click',async()=>{
     button.disabled=false;
     if(error){message.textContent=error.message;return}
     activeSaleId=saleId;outstanding=cart.reduce((sum,item)=>sum+item.price*item.quantity,0);
+    saleJustCreated=true;
   }
   button.disabled=true;
-  const {error:buyerError}=await supabase.rpc('set_sale_customer_details',{p_sale_id:activeSaleId,p_customer_name:$('#customerName').value.trim()||null,p_customer_phone:$('#customerPhone').value.trim()||$('#phone').value.trim()||null});
+  const {error:buyerError}=await supabase.rpc('set_sale_customer_details',{p_sale_id:activeSaleId,p_customer_name:$('#customerName').value.trim()||null,p_customer_phone:$('#customerPhone').value.trim()||null});
   if(buyerError){button.disabled=false;message.textContent='Buyer details could not be saved. The sale remains pending; retry or contact the admin.';return}
   if(method==='mpesa'){
-    const sale=(await supabase.from('sales').select('sale_number,total_amount,status').eq('id',activeSaleId).single()).data;
-    $('#tillReference').textContent=sale?.sale_number||activeSaleId;
-    $('#tillAmount').textContent=money(sale?.total_amount??outstanding);
-    if(!phone){
-      button.disabled=false;message.textContent=`Till details are ready. Sale ${$('#tillReference').textContent} stays pending until the payment callback verifies the transfer.`;
-      watchMpesaPayment(activeSaleId);return;
+    const {data:sale,error:saleError}=await supabase.from('sales').select('sale_number,total_amount,status').eq('id',activeSaleId).single();
+    if(saleError||!sale){button.disabled=false;message.textContent=saleError?.message||'Sale details could not be loaded.';return}
+    $('#tillReference').textContent=configuredPaybillAccountNumber;
+    $('#tillOrderNumber').textContent=sale.sale_number;
+    $('#tillAmount').textContent=money(sale.total_amount);
+    if(saleJustCreated){
+      button.disabled=false;updatePaymentFields();
+      message.textContent=`Sale ${sale.sale_number} is pending. Ask the customer to pay ${money(sale.total_amount)}, then enter the receipt code and amount to verify.`;
+      return;
     }
-    const {data,error}=await supabase.functions.invoke('mpesa-stk',{body:{sale_id:activeSaleId,phone}});
-    button.disabled=false;message.textContent=error?'Till payment needs the Daraja connection before this sale can be confirmed. Do not mark it paid manually.':data?.customer_message||'STK prompt sent. Wait for payment confirmation.';
-    if(!error){button.textContent='Prompt sent · resend if needed';watchMpesaPayment(activeSaleId)}
+    const {data:remaining,error}=await supabase.rpc('verify_manual_mpesa_payment',{p_sale_id:activeSaleId,p_amount:amount,p_transaction_code:transactionCode});
+    button.disabled=false;
+    if(error){message.textContent=error.message;return}
+    outstanding=Number(remaining||0);
+    const completedSaleId=activeSaleId;
+    await completeMpesaSale(completedSaleId);
     return;
   }
   const {data:remaining,error}=await supabase.rpc('add_manual_sale_payment',{p_sale_id:activeSaleId,p_method:method,p_amount:amount,p_reference:$('#reference').value.trim()||null});
@@ -178,24 +178,14 @@ $('#checkout').addEventListener('click',async()=>{
   message.textContent='Sale fully paid. Stock update confirmed by the server.';
   const confirmedSale=await loadReceiptReference(completedSaleId);
   showReceipt(completedSaleId,confirmedSale?.sale_number||completedSaleId);
-  activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#customerName').value='';$('#customerPhone').value='';$('#phone').value='';
+  activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#customerName').value='';$('#customerPhone').value='';$('#mpesaTransactionCode').value='';
   renderCart();updatePaymentFields();await load();
 });
 
 $('#copyTillDetails').addEventListener('click',async()=>{
-  const details=`Till: ${configuredTillNumber}\nAmount: ${$('#tillAmount').textContent}\nReference: ${$('#tillReference').textContent}`;
-  try{await navigator.clipboard.writeText(details);message.textContent='Till number, amount and sale reference copied.'}
+  const details=`PayBill: ${configuredPaybillNumber}\nAmount: ${$('#tillAmount').textContent}\nAccount number: ${$('#tillReference').textContent}`;
+  try{await navigator.clipboard.writeText(details);message.textContent='PayBill number, amount and fixed account number copied.'}
   catch{message.textContent='Copy is unavailable in this browser. Read the payment details to the customer.'}
-});
-
-$('#checkTillPayment').addEventListener('click',async event=>{
-  const button=event.currentTarget;if(!activeSaleId){message.textContent='Start a Till checkout first.';return}
-  button.disabled=true;
-  const sale=await loadReceiptReference(activeSaleId);
-  button.disabled=false;
-  if(!sale){message.textContent='Payment is not confirmed yet. Keep the medicine until confirmation arrives.';return}
-  if(paymentWatcher){clearInterval(paymentWatcher);paymentWatcher=null}
-  await completeMpesaSale(activeSaleId,sale.sale_number);
 });
 
 $('#hold').addEventListener('click',async()=>{

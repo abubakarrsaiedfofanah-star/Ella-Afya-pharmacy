@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     const ts = timestamp();
     const password = btoa(`${shortcode}${passkey}${ts}`);
     const access = await token(base, key, secret);
-    const payload = { BusinessShortCode: shortcode, Password: password, Timestamp: ts, TransactionType: Deno.env.get("MPESA_TRANSACTION_TYPE") || "CustomerBuyGoodsOnline", Amount: paymentAmount, PartyA: normalizedPhone, PartyB: shortcode, PhoneNumber: normalizedPhone, CallBackURL: callbackUrl.toString(), AccountReference: sale.sale_number, TransactionDesc: `Pharmacy sale ${sale.sale_number}` };
+    const payload = { BusinessShortCode: shortcode, Password: password, Timestamp: ts, TransactionType: Deno.env.get("MPESA_TRANSACTION_TYPE") || "CustomerPayBillOnline", Amount: paymentAmount, PartyA: normalizedPhone, PartyB: shortcode, PhoneNumber: normalizedPhone, CallBackURL: callbackUrl.toString(), AccountReference: sale.sale_number, TransactionDesc: `Pharmacy sale ${sale.sale_number}` };
     const r = await fetch(`${base}/mpesa/stkpush/v1/processrequest`, { method: "POST", headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const result = await r.json();
     if (!r.ok || result.ResponseCode !== "0") {

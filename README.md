@@ -52,7 +52,7 @@ Admin reports include daily sales, paid amounts, cash, M-Pesa, other payments an
 ## M-Pesa / Daraja
 The project includes:
 - `supabase/functions/mpesa-stk` — server-side STK Push initiation.
-- `supabase/functions/mpesa-callback` — public callback receiver for STK and supported C2B confirmation payloads.
+- `supabase/functions/payment-callback` — public STK and C2B callback URL (named without restricted Daraja URL keywords).
 
 Safaricom Daraja is asynchronous and uses callback URLs for payment notifications. See the official Daraja documentation before production onboarding.
 
@@ -62,20 +62,20 @@ Required Supabase Edge Function secrets:
 MPESA_ENV=sandbox
 MPESA_CONSUMER_KEY=...
 MPESA_CONSUMER_SECRET=...
-MPESA_SHORTCODE=<Safaricom Till number>
+MPESA_SHORTCODE=247247
 MPESA_PASSKEY=...
-MPESA_CALLBACK_URL=https://YOUR-PROJECT.supabase.co/functions/v1/mpesa-callback
+MPESA_CALLBACK_URL=https://YOUR-PROJECT.supabase.co/functions/v1/payment-callback
 MPESA_CALLBACK_SECRET=<at least 32 random bytes>
-MPESA_TRANSACTION_TYPE=CustomerBuyGoodsOnline
+MPESA_TRANSACTION_TYPE=CustomerPayBillOnline
 ```
 
-Apply `019_backend_integrity_hardening.sql` after migration 018, then apply `020_admin_transaction_visibility.sql`. Migration 020 writes an audit event and admin notification atomically for each sale opening, payment attempt/status transition, refund, cancellation, audited business/security action, and direct medicine, supplier, or pharmacy-setting edit. The Admin Dashboard notification badge and paginated Alerts activity feed surface these events; the Alerts page refreshes every 30 seconds while visible. The admin Transaction Activity page can search and page through the full payment history. The STK function appends the callback token to `MPESA_CALLBACK_URL`; register the C2B confirmation URL with the same `?token=...` query parameter. The callback function rejects requests without the token. M-Pesa STK requires whole-shilling totals; decimal sale totals must use another payment method.
+The STK function appends `MPESA_CALLBACK_SECRET` to `MPESA_CALLBACK_URL`. C2B URL registration uses the same callback secret and separate `stage=validation` and `stage=confirmation` URLs. Register the URLs with `npm run mpesa:register-c2b` after deploying the callback function and setting the Daraja credentials in the shell environment. In production, URL registration is a one-time Daraja operation; verify the shortcode and callback URL before setting `MPESA_PRODUCTION_REGISTRATION_CONFIRMED=YES`. C2B validation is optional and Safaricom must enable it for the PayBill. STK requires whole-shilling totals; decimal sale totals must use another payment method.
 
-Till/Buy Goods is the initial payment flow. Set `MPESA_SHORTCODE` to the Till number enabled for Daraja STK Push and use its matching passkey and credentials. `CustomerBuyGoodsOnline` is also the code default when `MPESA_TRANSACTION_TYPE` is omitted. A PayBill flow can be selected later with `MPESA_TRANSACTION_TYPE=CustomerPayBillOnline` and the matching PayBill credentials.
+Without Daraja API access, the cashier can accept M-PESA by entering the transaction code and amount on the POS after checking the payment in the M-PESA message or statement. The database rejects reused codes and any amount that does not exactly equal the sale total. It records the staff verifier and timestamp, then marks the sale paid, deducts inventory, and audits the action in one transaction. This is a staff attestation; only a Daraja callback can independently verify a receipt with Safaricom.
 
-**Important:** a Till/C2B confirmation can only be automatically matched when a safe transaction reference (for example `BillRefNumber` or an agreed third-party reference) identifies the sale. Do not auto-match a Till payment by amount alone.
+The POS shows PayBill `247247` and account `427459`. Daraja C2B confirmations can also be received in the admin **Transactions → Unmatched PayBill payments** list and manually matched to a sale when using the callback path. The `verification_source` field distinguishes staff-verified payments from Daraja STK/C2B payments, so API verification can be introduced without changing the payment record model.
 
-Apply `supabase/migrations/021_sale_customer_details.sql` after migration 020. The POS can store buyer name and phone on each sale, and verified C2B callbacks attach payer details and payment receipt to the sale that already contains its medicine lines. This requires the deployed `mpesa-callback` function and registered Till callback URL. Without the callback connection, Till sales remain unverified and pending.
+Run migrations `021_sale_customer_details.sql` through `024_manual_mpesa_verification.sql` after migration 020. The pharmacy settings page has PayBill and account fields. Daraja callbacks require the deployed `payment-callback` function, Supabase function secrets, and Safaricom URL registration. C2B validation is optional and Safaricom must activate it for the PayBill.
 
 ## Frontend configuration
 Copy:
@@ -84,18 +84,18 @@ Copy:
 
 and fill in the Supabase project URL and public anon key.
 
-For Vercel, set the project root to `pharmacy-full-upgrade` (the directory containing `vercel.json`) and configure `SUPABASE_URL` and `SUPABASE_ANON_KEY` as deployment environment variables. The Vercel build creates the static site and injects these public browser settings; the anon key is public by design and all access must remain protected by Supabase RLS. Never add a service-role key to these variables or frontend files.
+For Vercel, set the project root to `pharmacy-full-upgrade` (the directory containing `vercel.json`). In **Project Settings → Environment Variables**, add `SUPABASE_URL` using the Supabase Project URL and `SUPABASE_ANON_KEY` using the project's public anon/publishable key. Apply both to Production (and Preview/Development if used), then redeploy. The build injects these public browser settings; the anon key is public by design and all access must remain protected by Supabase RLS. Never add a service-role key to these variables or frontend files. The build intentionally stops when either value is missing or still a placeholder.
 
 Never put `SUPABASE_SERVICE_ROLE_KEY`, M-Pesa consumer secret, passkey or other server secrets in frontend files.
 
 ## Deployment
 1. Create the Supabase project.
-2. Run all six migrations in order.
+2. Run migrations 001 through 024 in order.
 3. Configure Supabase Auth.
 4. Create the first admin profile securely.
-5. Deploy both Edge Functions.
-6. Add the M-Pesa secrets in Supabase Edge Function secrets.
-7. Set the callback URL in Daraja to the deployed `mpesa-callback` function.
+5. Manual M-PESA receipt verification works without Daraja. Deploy the Edge Functions only when enabling online/API payments.
+6. For Daraja API payments, add the M-Pesa secrets in Supabase Edge Function secrets.
+7. For Daraja C2B notifications, register the C2B callback URLs using `npm run mpesa:register-c2b`.
 8. Deploy the frontend to Vercel.
 9. Copy `config.example.js` to `config.js` and set the public Supabase values.
 
