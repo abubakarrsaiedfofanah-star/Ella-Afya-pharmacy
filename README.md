@@ -77,7 +77,7 @@ Without Daraja API access, the cashier can accept M-PESA by entering the transac
 
 The POS shows PayBill `247247` and account `427459`. Daraja C2B confirmations can also be received in the admin **Transactions → Unmatched PayBill payments** list and manually matched to a sale when using the callback path. The `verification_source` field distinguishes staff-verified payments from Daraja STK/C2B payments, so API verification can be introduced without changing the payment record model.
 
-Run migrations `021_sale_customer_details.sql` through `025_pending_sales_and_single_admin.sql` after migration 020. The pharmacy settings page has PayBill and account fields. Daraja callbacks require the deployed `payment-callback` function, Supabase function secrets, and Safaricom URL registration. C2B validation is optional and Safaricom must activate it for the PayBill.
+Run migrations `021_sale_customer_details.sql` through `027_fail_closed_authorization.sql` after migration 020. Run 026 and 027 as separate SQL Editor executions: PostgreSQL must commit the enum addition in 026 before 027 can use it. Migration 027 makes missing/inactive profiles fail closed in database role checks, requires Admin MFA at the database boundary, and restricts the audit writer. The pharmacy settings page has PayBill and account fields. Daraja callbacks require the deployed `payment-callback` function, Supabase function secrets, and Safaricom URL registration. C2B validation is optional and Safaricom must activate it for the PayBill.
 
 ## Frontend configuration
 Copy:
@@ -92,10 +92,10 @@ Never put `SUPABASE_SERVICE_ROLE_KEY`, M-Pesa consumer secret, passkey or other 
 
 ## Deployment
 1. Create the Supabase project.
-2. Run migrations 001 through 025 in order. Migration 025 is required for the pending Sales approval and single-Admin database safeguards.
+2. Run migrations 001 through 027 in order. Run migrations 026 and 027 separately, in that order, and let 026 finish before starting 027. These are required to make role checks fail closed and to enforce Admin MFA in the database.
 3. Configure Supabase Auth.
 4. Create the first admin profile securely.
-5. Manual M-PESA receipt verification works without Daraja. Deploy the Edge Functions only when enabling online/API payments.
+5. Deploy the updated `admin-create-user` Edge Function after migration 027 so immediate Admin-created Sales activation also requires an MFA-verified Admin session. Manual M-PESA receipt verification works without Daraja; deploy the M-PESA Edge Functions only when enabling online/API payments.
 6. For Daraja API payments, add the M-Pesa secrets in Supabase Edge Function secrets.
 7. For Daraja C2B notifications, register the C2B callback URLs using `npm run mpesa:register-c2b`.
 8. Deploy the frontend to Vercel.

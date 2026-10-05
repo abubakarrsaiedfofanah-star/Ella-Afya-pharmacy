@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const origin=Deno.env.get("ALLOWED_ORIGIN")||"*"; const cors={"Access-Control-Allow-Origin":origin,"Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type, x-registration-key"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 const strongPassword=(value:string)=>value.length>=12&&value.length<=128&&/[A-Z]/.test(value)&&/[a-z]/.test(value)&&/\d/.test(value)&&/[^A-Za-z0-9]/.test(value);
+const hasVerifiedAal2=(jwt:string)=>{try{const segment=jwt.split('.')[1];if(!segment)return false;const encoded=segment.replace(/-/g,'+').replace(/_/g,'/');const claims=JSON.parse(atob(encoded+'='.repeat((4-encoded.length%4)%4)));return claims.aal==='aal2'}catch{return false}};
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
  if(req.method!=='POST')return json({error:'Method not allowed.'},405);
@@ -23,7 +24,9 @@ Deno.serve(async req=>{
   if(fullName.length<2||fullName.length>120||!email||email.length>254||!/^\S+@\S+\.\S+$/.test(email)||!password)return json({error:'Enter a valid name, email and password.'},400);
   if(!strongPassword(password))return json({error:'Use 12–128 characters with uppercase, lowercase, a number and a symbol.'},400);
   const {data:callerProfile}=caller?await admin.from('profiles').select('role,active').eq('id',caller.id).maybeSingle():{data:null};
-  const isAdmin=callerProfile?.role==='admin'&&callerProfile.active;
+  // getUser(token) above verifies the JWT signature; only its verified aal2
+  // claim may authorize immediate Admin-created account activation.
+  const isAdmin=callerProfile?.role==='admin'&&callerProfile.active&&hasVerifiedAal2(token);
   const configuredKey=Deno.env.get('STAFF_REGISTRATION_KEY');
   if(!isAdmin && (!configuredKey || registrationKey!==configuredKey))return json({error:'Invalid staff registration authorization.'},403);
   const {data:created,error}=await admin.auth.admin.createUser({email,password,email_confirm:isAdmin,user_metadata:{full_name:fullName}});

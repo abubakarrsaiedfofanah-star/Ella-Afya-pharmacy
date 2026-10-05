@@ -3245,3 +3245,8 @@ $$;
 create unique index if not exists uq_profiles_single_admin
   on public.profiles(role)
   where role='admin';
+
+-- SECURITY FOLLOW-UP REQUIRED AFTER THIS SCRIPT COMMITS:
+-- Run supabase/migrations/026_inactive_role_enum.sql by itself in SQL Editor;
+-- after it succeeds, run supabase/migrations/027_fail_closed_authorization.sql
+-- by itself. PostgreSQL requires the new enum value to commit before 027 uses it.

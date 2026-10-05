@@ -31,12 +31,12 @@ form.addEventListener('submit',async e=>{e.preventDefault();if(renderLock())retu
   if(profileError||!p){await supabase.auth.signOut();safeMsg('Unable to verify this account. Please sign in again.');setBusy(false);return}
   if(!p.active){await supabase.auth.signOut();safeMsg(expectedRole==='seller'?'Your Sales account is waiting for Admin approval. Workspace access is not active yet.':'This Admin account is inactive. Contact your system administrator.');setBusy(false);return}
   if(p.role!==expectedRole){await supabase.auth.signOut();safeMsg(`This account is not authorized for the ${portalName} portal. Use the matching sign-in page.`);setBusy(false);return}
-  if(!(await ensureDeviceSession()))return;
   if(p.role==='admin'){
    const {data:aal,error:mfaError}=await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
    if(mfaError){await supabase.auth.signOut();safeMsg('Unable to verify administrator security. Please sign in again.');setBusy(false);return}
    if(aal?.currentLevel!=='aal2'){safeMsg('Administrator MFA verification is required. Opening secure verification…','ok');setTimeout(()=>location.href='/auth/mfa/',250);return}
   }
+  if(!(await ensureDeviceSession()))return;
   safeMsg(`Access granted. Opening the ${portalName} portal…`,'ok');setTimeout(()=>{location.href=expectedRole==='admin'?'/admin/':'/seller/'},250);
  }catch{safeMsg('Sign-in is temporarily unavailable. Please try again.');setBusy(false)}
 });
