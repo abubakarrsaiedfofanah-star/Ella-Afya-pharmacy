@@ -104,17 +104,12 @@ function validateCsv(text){
   const headerRowIndex=data.slice(0,20).findIndex(row=>row.some(cell=>canonical(cell)==='name'));
   const headerIndex=headerRowIndex<0?0:headerRowIndex;
   const headers=(data[headerIndex]||[]).map((cell,index)=>{const field=canonical(cell);return field&&known.has(field)?field:`__ignored_${index}`});
-  let inferredNameColumn=false;
-  if(!headers.includes('name')){
-    const column=headers.findIndex(header=>header.startsWith('__ignored_'));
-    if(column<0)throw new Error('No medicine-name column found. Use a Medicine, Item, Product or Description heading.');
-    headers[column]='name';inferredNameColumn=true;
-  }
+  const hasNameColumn=headers.includes('name');
   const mapped=headers.filter(header=>!header.startsWith('__ignored_'));
   if(new Set(mapped).size!==mapped.length)throw new Error('The sheet has duplicate medicine columns after normalizing their names.');
   if(data.length-headerIndex>5001)throw new Error('Import up to 5,000 medicines at a time.');
   const seenBarcodes=new Set(),warnings=[];
-  if(inferredNameColumn)warnings.push('No familiar medicine-name heading was found; using the first unrecognized column as the medicine name.');
+  if(!hasNameColumn)throw new Error('No medicine-name column found. The sheet is shown below; add a Medicine or Product name column before importing.');
   const items=data.slice(headerIndex+1).map((cells,index)=>{
     const rowNumber=headerIndex+index+2;
     if(!cells.some(cell=>cell.trim()))return null;
@@ -141,15 +136,17 @@ function renderPreview(items,warnings=[]){
 }
 function renderSheetPreview(text,errorMessage=''){
   const data=parseCsv(text.replace(/^\uFEFF/,''));
-  const headerIndex=data.slice(0,20).findIndex(row=>row.some(cell=>normalizeHeader(cell)==='name'||['medicine','item','product','description'].includes(normalizeHeader(cell))));
+  const nameHeaders=['name','medicine','med','medicine_name','name_of_medicine','name_of_item','medication','medication_name','product','product_name','item','item_name','drug','drug_name','description'];
+  const headerIndex=data.slice(0,30).findIndex(row=>row.some(cell=>nameHeaders.includes(normalizeHeader(cell))));
   const start=headerIndex<0?0:headerIndex;
-  const columns=data[start]||[];
-  const errorRow=Number(errorMessage.match(/Row (\d+)/)?.[1]);
-  const errorIndex=errorRow?errorRow-start-2:0;
-  const from=Math.max(0,Math.min(data.length-start-1,errorIndex>24?errorIndex-5:0));
-  const visible=data.slice(start+1+from,start+1+from+25);
+  const columns=[...(data[start]||[])];
+  const normalizedHeaders=columns.map(normalizeHeader);
+  if(!normalizedHeaders.some(header=>['purchase_price','buying_price','buy_price','cost_price','purchase_cost'].includes(header)))columns.push('Buying price');
+  if(!normalizedHeaders.some(header=>['selling_price','sale_price','selling_price','sell_price','retail_price'].includes(header)))columns.push('Selling price');
+  const visible=data.slice(start+1);
   if(!visible.length)return;
-  csvPreview.innerHTML=`<table class="table"><thead><tr>${columns.map((cell,index)=>`<th>${escapeHtml(cell||`Column ${index+1}`)}</th>`).join('')}</tr></thead><tbody>${visible.map((row,index)=>`<tr${errorRow===start+from+index+2?' class="csv-error-row"':''}>${columns.map((_,column)=>`<td>${escapeHtml(row[column]||'')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const errorRow=Number(errorMessage.match(/Row (\d+)/)?.[1]);
+  csvPreview.innerHTML=`<table class="table"><thead><tr><th>Sheet row</th>${columns.map((cell,index)=>`<th>${escapeHtml(cell||`Column ${index+1}`)}</th>`).join('')}</tr></thead><tbody>${visible.map((row,index)=>{const sheetRow=start+index+2;return `<tr${sheetRow===errorRow?' class="csv-error-row"':''}><td>${sheetRow}</td>${columns.map((_,column)=>`<td>${escapeHtml(row[column]||'')}</td>`).join('')}</tr>`}).join('')}</tbody></table>`;
   csvPreview.hidden=false;
 }
 function normalizeHeader(value){return String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')}
@@ -165,13 +162,14 @@ csvFile.onchange=async()=>{
       csvMsg.textContent='Reading Excel workbook…';
       const XLSX=await import('https://esm.sh/xlsx@0.18.5');
       const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
-      const firstSheet=workbook.Sheets[workbook.SheetNames[0]];
+      const firstSheet=workbook.SheetNames.map(name=>workbook.Sheets[name]).find(sheet=>sheet?.['!ref']);
       if(!firstSheet)throw new Error('The workbook has no readable worksheets.');
       csvText=XLSX.utils.sheet_to_csv(firstSheet,{dateNF:'yyyy-mm-dd'});
     }else throw new Error('Choose an Excel workbook (.xlsx or .xls) or a CSV file.');
+    renderSheetPreview(csvText);
     const parsed=validateCsv(csvText);csvRows=parsed.items;renderPreview(csvRows,parsed.warnings);importButton.disabled=false;
   }
-  catch(error){csvMsg.textContent=`${error.message} Showing the sheet below so you can find and correct the problem.`;if(csvText)renderSheetPreview(csvText,error.message)}
+  catch(error){csvMsg.textContent=`${error.message}${csvText?' Showing the sheet below so you can review it.':''}`;if(csvText)renderSheetPreview(csvText,error.message)}
 };
 importButton.onclick=async()=>{
   if(!csvRows.length)return;
