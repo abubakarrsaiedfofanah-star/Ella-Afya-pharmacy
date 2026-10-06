@@ -5,7 +5,7 @@ const session=await requireUser(['admin']);
 if(!session) throw new Error('Unauthorized');
 
 const $=selector=>document.querySelector(selector);
-const form=$('#form'),rows=$('#rows'),msg=$('#msg'),search=$('#search'),filter=$('#filter');
+const form=$('#form'),rows=$('#rows'),msg=$('#msg'),search=$('#search'),filter=$('#filter'),catalogMsg=$('#catalogMsg');
 const csvFile=$('#csvFile'),csvMsg=$('#csvMsg'),csvPreview=$('#csvPreview'),importButton=$('#importCsv');
 let medicines=[],csvRows=[];
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -37,7 +37,25 @@ function render(){
   rows.innerHTML=medicines.filter(item=>`${item.name} ${item.generic_name||''} ${item.barcode||''}`.toLowerCase().includes(query)).filter(item=>{
     const quantity=item.inventory?.[0]?.quantity??0;
     return mode==='low'?quantity<=item.min_stock:mode==='out'?quantity===0:mode==='rx'?item.prescription_required:true;
-  }).map(item=>`<tr><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td>${item.purchase_price==null?'-':`KSh ${Number(item.purchase_price).toLocaleString()}`}</td><td>KSh ${Number(item.selling_price).toLocaleString()}</td><td>${item.inventory?.[0]?.quantity??0}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td></tr>`).join('')||'<tr><td colspan="9">No medicines found.</td></tr>';
+  }).map(item=>`<tr data-medicine-row="${escapeHtml(item.id)}"><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td><input class="catalog-price" data-price="buying" type="number" min="0" step="0.01" value="${item.purchase_price??''}" aria-label="Buying price for ${escapeHtml(item.name)}" disabled></td><td><input class="catalog-price" data-price="selling" type="number" min="0" step="0.01" value="${Number(item.selling_price)}" aria-label="Selling price for ${escapeHtml(item.name)}" disabled></td><td>${item.inventory?.[0]?.quantity??0}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td><td><button class="btn secondary" type="button" data-edit-prices="${escapeHtml(item.id)}">Edit prices</button></td></tr>`).join('')||'<tr><td colspan="10">No medicines found.</td></tr>';
+  rows.querySelectorAll('[data-edit-prices]').forEach(button=>button.addEventListener('click',()=>{
+    const row=button.closest('[data-medicine-row]');
+    row.querySelectorAll('[data-price]').forEach(input=>{input.disabled=false});
+    button.hidden=true;
+    const save=document.createElement('button');save.className='btn';save.type='button';save.textContent='Save';
+    const cancel=document.createElement('button');cancel.className='btn secondary';cancel.type='button';cancel.textContent='Cancel';
+    button.after(save,cancel);
+    cancel.addEventListener('click',render);
+    save.addEventListener('click',async()=>{
+      const buying=row.querySelector('[data-price="buying"]'),selling=row.querySelector('[data-price="selling"]');
+      const purchasePrice=Number(buying.value),sellingPrice=Number(selling.value);
+      if(buying.value===''||selling.value===''||!Number.isFinite(purchasePrice)||purchasePrice<0||!Number.isFinite(sellingPrice)||sellingPrice<0){catalogMsg.textContent='Enter valid non-negative buying and selling prices.';return}
+      save.disabled=true;catalogMsg.textContent='Saving prices…';
+      const {error}=await supabase.from('medicines').update({purchase_price:purchasePrice,selling_price:sellingPrice}).eq('id',row.dataset.medicineRow);
+      if(error){catalogMsg.textContent=`Prices could not be saved: ${error.message}`;save.disabled=false;return}
+      await load();catalogMsg.textContent='Prices saved.';
+    });
+  }));
 }
 form.onsubmit=async event=>{
   event.preventDefault();const values=Object.fromEntries(new FormData(form));
