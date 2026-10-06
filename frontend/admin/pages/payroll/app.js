@@ -7,6 +7,7 @@ const form = $('#payrollForm');
 const rows = $('#rows');
 const formMsg = $('#formMsg');
 const listMsg = $('#listMsg');
+let payrollRecords = [];
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const money = (value, currency = 'KES') => new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value || 0));
 
@@ -22,10 +23,23 @@ async function loadHistory() {
   listMsg.textContent = 'Loading payroll records…';
   const { data, error } = await supabase.from('payroll_payments').select('*').order('pay_month', { ascending: false }).order('paid_at', { ascending: false }).limit(300);
   if (error) { rows.replaceChildren(); listMsg.textContent = `Payroll could not be loaded: ${error.message}`; return; }
-  listMsg.textContent = `${data?.length || 0} payroll payment${data?.length === 1 ? '' : 's'} recorded.`;
-  rows.innerHTML = (data || []).map((item) => `<tr><td>${escapeHtml(item.payroll_number)}</td><td>${escapeHtml(item.staff_name)}</td><td>${escapeHtml(item.pay_month.slice(0,7))}</td><td>${escapeHtml(money(item.amount,item.currency_code))}</td><td>${escapeHtml(item.payment_method)}</td><td>${escapeHtml(item.paid_by_name)}</td><td>${escapeHtml(new Date(item.paid_at).toLocaleString())}</td><td><button class="btn secondary" data-print="${escapeHtml(item.id)}" type="button">Print</button></td></tr>`).join('') || '<tr><td colspan="8" class="muted">No payroll recorded yet.</td></tr>';
+  payrollRecords = data || [];
+  renderHistory();
+}
+
+function renderHistory() {
+  const month = $('#historyMonth').value;
+  const staffId = $('#historyStaff').value;
+  const query = $('#historySearch').value.trim().toLowerCase();
+  const filtered = payrollRecords.filter((item) => (!month || item.pay_month.startsWith(month)) && (!staffId || item.staff_id === staffId) && (!query || `${item.payroll_number} ${item.staff_name} ${item.payment_reference || ''} ${item.notes || ''}`.toLowerCase().includes(query)));
+  const currencies = new Set(filtered.map((item) => item.currency_code || 'KES'));
+  const total = filtered.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const totalLabel = currencies.size <= 1 ? money(total, [...currencies][0] || 'KES') : `${filtered.length} payments across ${currencies.size} currencies`;
+  $('#payrollSummary').innerHTML = `<article><span>Total paid</span><strong>${escapeHtml(totalLabel)}</strong></article><article><span>Payments</span><strong>${filtered.length}</strong></article><article><span>Staff paid</span><strong>${new Set(filtered.map((item) => item.staff_id)).size}</strong></article>`;
+  listMsg.textContent = `${filtered.length} of ${payrollRecords.length} loaded payroll record${payrollRecords.length === 1 ? '' : 's'}. The history is limited to the latest 300 records.`;
+  rows.innerHTML = filtered.map((item) => `<tr><td>${escapeHtml(item.payroll_number)}</td><td>${escapeHtml(item.staff_name)}</td><td>${escapeHtml(item.pay_month.slice(0,7))}</td><td>${escapeHtml(money(item.amount,item.currency_code))}</td><td>${escapeHtml(item.payment_method)}</td><td>${escapeHtml(item.paid_by_name)}</td><td>${escapeHtml(new Date(item.paid_at).toLocaleString())}</td><td><button class="btn secondary" data-print="${escapeHtml(item.id)}" type="button">Print</button></td></tr>`).join('') || '<tr><td colspan="8" class="muted">No payroll matches these filters.</td></tr>';
   rows.querySelectorAll('[data-print]').forEach((button) => button.addEventListener('click', async () => {
-    const payment = (data || []).find((item) => item.id === button.dataset.print);
+    const payment = filtered.find((item) => item.id === button.dataset.print);
     if (payment) await printPayroll(payment);
   }));
 }
@@ -35,7 +49,10 @@ const [{ data: staff, error: staffError }, { data: settings, error: settingsErro
   supabase.from('pharmacy_settings').select('receipt_signature_path,receipt_signature_name').eq('id', true).single(),
 ]);
 if (staffError) formMsg.textContent = `Staff list could not be loaded: ${staffError.message}`;
-else $('#staff').innerHTML = '<option value="">Choose staff member</option>' + (staff || []).map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.full_name)}${person.active ? '' : ' (inactive)'}</option>`).join('');
+else {
+  $('#staff').innerHTML = '<option value="">Choose staff member</option>' + (staff || []).map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.full_name)}${person.active ? '' : ' (inactive)'}</option>`).join('');
+  $('#historyStaff').innerHTML = '<option value="">All staff</option>' + (staff || []).map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.full_name)}${person.active ? '' : ' (inactive)'}</option>`).join('');
+}
 if (settingsError || !settings?.receipt_signature_path || !settings?.receipt_signature_name) {
   formMsg.textContent = 'Save the admin receipt signature in Pharmacy Settings before recording payroll.';
   $('#recordPayment').disabled = true;
@@ -64,4 +81,7 @@ form.addEventListener('submit', async (event) => {
   await loadHistory();
 });
 $('#refresh').addEventListener('click', loadHistory);
+$('#historyMonth').addEventListener('input', renderHistory);
+$('#historyStaff').addEventListener('change', renderHistory);
+$('#historySearch').addEventListener('input', renderHistory);
 loadHistory();
