@@ -92,7 +92,7 @@ Never put `SUPABASE_SERVICE_ROLE_KEY`, M-Pesa consumer secret, passkey or other 
 
 ## Deployment
 1. Create the Supabase project.
-2. Run migrations 001 through 030 in order. Run migrations 026 and 027 separately, in that order, and let 026 finish before starting 027. Then run 028, 029, and 030. Migration 030 adds MFA-protected admin payroll, private receipt-signature storage, immutable signer snapshots, and signed receipt verification. Set the signer name and upload the admin signature in Pharmacy Settings after applying it.
+2. Run migrations 001 through 031 in order. Run migrations 026 and 027 separately, in that order, and let 026 finish before starting 027. Then run 028, 029, 030, and 031. Migration 030 adds MFA-protected admin payroll, private receipt-signature storage, immutable signer snapshots, and signed receipt verification. Migration 031 restricts purchase-cost access to the admin-only catalogue view. Set the signer name and upload the admin signature in Pharmacy Settings after applying migration 030.
 3. Configure Supabase Auth.
 4. Create the first admin profile securely.
 5. Deploy the updated `admin-create-user` Edge Function after migration 027 so immediate Admin-created Sales activation also requires an MFA-verified Admin session. Manual M-PESA receipt verification works without Daraja; deploy the M-PESA Edge Functions only when enabling online/API payments.
