@@ -5,28 +5,31 @@ const session = await requireUser(['admin']);
 const form = document.querySelector('#form');
 const message = document.querySelector('#msg');
 const signatureMessage = document.querySelector('#signatureMsg');
+const signatureName = document.querySelector('#receiptSignatureName');
 const signatureFile = document.querySelector('#receiptSignatureFile');
 const signaturePreview = document.querySelector('#receiptSignaturePreview');
+const savedSignature = document.querySelector('#savedSignature');
 const uploadButton = document.querySelector('#uploadReceiptSignature');
 let savedSignaturePath = null;
+uploadButton.disabled = true;
 
 async function showSignature(path) {
   savedSignaturePath = path || null;
   if (!savedSignaturePath) {
-    signaturePreview.hidden = true;
+    savedSignature.hidden = true;
     signaturePreview.removeAttribute('src');
     signatureMessage.textContent = 'No admin receipt signature is saved. Sales cannot be completed until one is uploaded.';
     return;
   }
   const { data, error } = await supabase.storage.from('receipt-signatures').createSignedUrl(savedSignaturePath, 300);
   if (error || !data?.signedUrl) {
-    signaturePreview.hidden = true;
+    savedSignature.hidden = true;
     signatureMessage.textContent = 'The saved signature could not be previewed. Check the private storage policy or upload it again.';
     return;
   }
   signaturePreview.src = data.signedUrl;
-  signaturePreview.hidden = false;
-  signatureMessage.textContent = 'Admin receipt signature saved in private storage.';
+  savedSignature.hidden = false;
+  signatureMessage.textContent = 'Admin receipt signature saved in private storage. Upload a new image to replace it.';
 }
 
 const { data, error } = await supabase.from('pharmacy_settings').select('*').single();
@@ -35,7 +38,9 @@ if (data) {
   Object.entries(data).forEach(([key, value]) => {
     if (form.elements[key]) form.elements[key].value = value ?? '';
   });
+  signatureName.value = data.receipt_signature_name || '';
   await showSignature(data.receipt_signature_path);
+  uploadButton.disabled = false;
 }
 
 form.addEventListener('submit', async (event) => {
@@ -43,7 +48,6 @@ form.addEventListener('submit', async (event) => {
   const settings = Object.fromEntries(new FormData(form).entries());
   settings.low_stock_threshold = Number(settings.low_stock_threshold);
   settings.expiry_alert_days = Number(settings.expiry_alert_days);
-  settings.receipt_signature_name = String(settings.receipt_signature_name || '').trim();
   settings.updated_by = session.user.id;
   settings.updated_at = new Date().toISOString();
 
@@ -53,10 +57,10 @@ form.addEventListener('submit', async (event) => {
 
 uploadButton.addEventListener('click', async () => {
   const file = signatureFile.files?.[0];
-  const signerName = String(form.elements.receipt_signature_name?.value || '').trim();
+  const signerName = String(signatureName.value || '').trim();
   if (!signerName) {
     signatureMessage.textContent = 'Enter the authorized receipt signer name and save it with the signature.';
-    form.elements.receipt_signature_name?.focus();
+    signatureName.focus();
     return;
   }
   if (!file) {
