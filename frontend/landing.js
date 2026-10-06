@@ -1,6 +1,13 @@
 const menu=document.querySelector('.site-menu');
 const menuButton=menu?.querySelector('summary');
 
+if(menuButton){
+  menuButton.setAttribute('aria-expanded',String(menu.open));
+  menu.addEventListener('toggle',()=>{
+    menuButton.setAttribute('aria-expanded',String(menu.open));
+    menuButton.setAttribute('aria-label',menu.open?'Close website menu':'Open website menu');
+  });
+}
 menu?.querySelectorAll('a').forEach(link=>link.addEventListener('click',()=>{menu.open=false}));
 document.addEventListener('click',event=>{
   if(menu?.open&&!menu.contains(event.target))menu.open=false;
@@ -8,6 +15,26 @@ document.addEventListener('click',event=>{
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape'&&menu?.open){menu.open=false;menuButton?.focus()}
 });
+
+const sectionLinks=[...document.querySelectorAll('.desktop-nav a[href^="#"],.site-menu nav a[href^="#"]')];
+const observedSections=new Map();
+if('IntersectionObserver' in window){
+  const sectionObserver=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting)observedSections.set(entry.target.id,entry.intersectionRatio);
+      else observedSections.delete(entry.target.id);
+    });
+    const currentId=[...observedSections.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0];
+    sectionLinks.forEach(link=>{
+      if(link.hash===`#${currentId}`)link.setAttribute('aria-current','location');
+      else link.removeAttribute('aria-current');
+    });
+  },{rootMargin:'-18% 0px -65% 0px',threshold:[0,.15,.35,.6]});
+  ['services','steps','faq'].forEach(id=>{
+    const section=document.getElementById(id);
+    if(section)sectionObserver.observe(section);
+  });
+}
 
 const filters=[...document.querySelectorAll('[data-service-filter]')];
 const serviceCards=[...document.querySelectorAll('[data-service-category]')];

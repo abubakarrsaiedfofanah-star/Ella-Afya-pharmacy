@@ -73,8 +73,6 @@ async function load(){
   finally{loading=false;$('#refreshBtn').disabled=false}
 }
 
-window.addEventListener('session-warning',()=>$('#sessionWarning').hidden=false);
-$('#stayBtn')?.addEventListener('click',()=>$('#sessionWarning').hidden=true);
 $('#refreshBtn').addEventListener('click',load);
 load();
 setInterval(load,60000);

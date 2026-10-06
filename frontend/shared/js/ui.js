@@ -228,8 +228,6 @@
     window.setTimeout(() => { button.disabled = false; }, 3000);
   });
 
-  document.querySelectorAll('#stayBtn').forEach(button => button.addEventListener('click', () => window.dispatchEvent(new CustomEvent('session-stay'))));
-  window.addEventListener('session-warning-clear', () => document.querySelectorAll('.session-warning').forEach(element => { element.hidden = true; }));
 
   if (sidebar && !sidebar.querySelector('.brand')) {
     const heading = sidebar.querySelector(':scope > h2');

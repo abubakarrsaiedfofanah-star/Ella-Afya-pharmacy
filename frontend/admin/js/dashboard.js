@@ -76,4 +76,4 @@ async function loadNotifications(){
   host.querySelectorAll('[data-notification]').forEach(button=>button.onclick=async()=>{await supabase.from('operational_notifications').update({read_at:new Date().toISOString()}).eq('id',button.dataset.notification);await loadNotifications()});
 }
 function refreshDashboard(){const values=document.querySelectorAll('.metric h2,.advanced-kpis h2');values.forEach(value=>{value.classList.add('skeleton');value.setAttribute('aria-busy','true')});return load().finally(()=>values.forEach(value=>{value.classList.remove('skeleton');value.removeAttribute('aria-busy')}))}
-$('#refreshBtn').onclick=refreshDashboard; window.addEventListener('session-warning',()=>$('#sessionWarning').hidden=false); $('#stayBtn')?.addEventListener('click',()=>$('#sessionWarning').hidden=true); initializeCommandCenter(); refreshDashboard();setInterval(refreshDashboard,60000);
+$('#refreshBtn').onclick=refreshDashboard; initializeCommandCenter(); refreshDashboard();setInterval(refreshDashboard,60000);
