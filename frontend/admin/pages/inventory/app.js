@@ -89,15 +89,18 @@ function truthy(value,label,rowNumber){
   throw new Error(`Row ${rowNumber}: ${label} must be yes/no, true/false, or 1/0.`);
 }
 function numberValue(value,label,rowNumber,{integer=false,required=false}={}){
-  if((value===undefined||String(value).trim()==='')){if(required)throw new Error(`Row ${rowNumber}: ${label} is required.`);return 0}
-  const number=Number(value);
-  if(!Number.isFinite(number)||number<0||(integer&&!Number.isInteger(number)))throw new Error(`Row ${rowNumber}: ${label} must be a valid ${integer?'whole':'non-negative'} number.`);
+  const raw=String(value??'').trim();
+  if(!raw||/^(?:-|–|—|n\/?a|null)$/i.test(raw)){if(required)throw new Error(`Row ${rowNumber}: ${label} is required.`);return 0}
+  let normalized=raw.replace(/[\s,\u00a0]/g,'').replace(/^(?:KES|KSHS?|USD|EUR|GBP)/i,'').replace(/(?:KES|KSHS?|USD|EUR|GBP)$/i,'').replace(/^[€$£¥₹]/,'').replace(/[€$£¥₹]$/,'').replace(/\/-?=?$/,'');
+  const number=Number(normalized);
+  const friendlyLabel=label==='purchase_price'?'buying price':label==='selling_price'?'selling price':label.replaceAll('_',' ');
+  if(!/^(?:\+?\d+(?:\.\d*)?|\+?\.\d+)$/.test(normalized)||!Number.isFinite(number)||number<0||(integer&&!Number.isInteger(number)))throw new Error(`Row ${rowNumber}: ${friendlyLabel} must be a valid ${integer?'whole':'non-negative'} number.`);
   return number;
 }
 function validateCsv(text){
   const data=parseCsv(text.replace(/^\uFEFF/,''));
   if(data.length<2)throw new Error('The sheet has a header row but no medicine rows.');
-  const aliases={medicine:'name',med:'name',medicine_name:'name',name_of_medicine:'name',name_of_item:'name',medication:'name',medication_name:'name',product:'name',product_name:'name',product_description:'name',product_details:'name',item:'name',item_name:'name',item_description:'name',item_details:'name',drug:'name',drug_name:'name',drug_description:'name',description:'name',particular:'name',particulars:'name',qty:'quantity',stock:'quantity',stock_qty:'quantity',quantity_in_stock:'quantity',opening_stock:'quantity',opening_quantity:'quantity',buying_price:'purchase_price',buy_price:'purchase_price',purchase_cost:'purchase_price',cost_price:'purchase_price',unit_cost:'purchase_price',cost:'purchase_price',sale_price:'selling_price',sales_price:'selling_price',sell_price:'selling_price',retail_price:'selling_price',batch_no:'batch_number',batch:'batch_number',expiry:'expiry_date',expirydate:'expiry_date'};
+  const aliases={medicine:'name',med:'name',medicine_name:'name',name_of_medicine:'name',name_of_item:'name',medication:'name',medication_name:'name',product:'name',product_name:'name',product_description:'name',product_details:'name',item:'name',item_name:'name',item_description:'name',item_details:'name',drug:'name',drug_name:'name',drug_description:'name',description:'name',particular:'name',particulars:'name',qty:'quantity',stock:'quantity',stock_qty:'quantity',quantity_in_stock:'quantity',opening_stock:'quantity',opening_quantity:'quantity',item_code:'barcode',product_code:'barcode',item_id:'barcode',sku:'barcode',buying_price:'purchase_price',buy_price:'purchase_price',purchase_cost:'purchase_price',cost_price:'purchase_price',unit_cost:'purchase_price',cost:'purchase_price',sale_price:'selling_price',sales_price:'selling_price',sell_price:'selling_price',retail_price:'selling_price',batch_no:'batch_number',batch:'batch_number',expiry:'expiry_date',expirydate:'expiry_date'};
   const known=new Set(['name','generic_name','brand','manufacturer','barcode','strength','dosage_form','unit','quantity','batch_number','expiry_date','purchase_price','selling_price','min_stock','reorder_level','prescription_required','controlled_medicine']);
   const normalize=header=>header.replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
   const canonical=header=>{const normalized=normalize(header);return aliases[normalized]||normalized};
@@ -169,7 +172,7 @@ csvFile.onchange=async()=>{
     renderSheetPreview(csvText);
     const parsed=validateCsv(csvText);csvRows=parsed.items;renderPreview(csvRows,parsed.warnings);importButton.disabled=false;
   }
-  catch(error){csvMsg.textContent=`${error.message}${csvText?' Showing the sheet below so you can review it.':''}`;if(csvText)renderSheetPreview(csvText,error.message)}
+  catch(error){csvMsg.textContent=error.message;if(csvText)renderSheetPreview(csvText,error.message)}
 };
 importButton.onclick=async()=>{
   if(!csvRows.length)return;
