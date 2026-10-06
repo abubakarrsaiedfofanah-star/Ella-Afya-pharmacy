@@ -18,8 +18,14 @@ function validExpiryDate(value){
 
 async function load(){
   const {data,error}=await supabase.from('medicines').select('id,name,generic_name,brand,manufacturer,barcode,strength,dosage_form,selling_price,prescription_required,controlled_medicine,min_stock,reorder_level,inventory(quantity)').order('name');
-  if(error){msg.textContent=error.message;return}
-  medicines=data||[];render();
+  if(error){msg.textContent=error.message;return false}
+  medicines=data||[];render();return true;
+}
+async function revealCatalogue(){
+  search.value='';filter.value='all';
+  const loaded=await load();
+  document.querySelector('#medicineCatalog')?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+  return loaded;
 }
 function render(){
   const query=search.value.toLowerCase(),mode=filter.value;
@@ -45,17 +51,29 @@ form.onsubmit=async event=>{
     await load();return;
   }
   msg.textContent='Medicine added.';
-  form.reset();await load();
+  form.reset();await revealCatalogue();
 };
 search.oninput=render;filter.onchange=render;
 
 function parseCsv(text){
+  const firstLine=text.split(/\r?\n/,1)[0]||'';
+  let delimiter=',',highestCount=0;
+  for(const candidate of [',',';','\t']){
+    let count=0,insideQuotes=false;
+    for(let index=0;index<firstLine.length;index++){
+      const character=firstLine[index];
+      if(character==='"'&&firstLine[index+1]==='"'){index++;continue}
+      if(character==='"')insideQuotes=!insideQuotes;
+      else if(character===candidate&&!insideQuotes)count++;
+    }
+    if(count>highestCount){highestCount=count;delimiter=candidate}
+  }
   const table=[];let row=[],field='',quoted=false;
   for(let i=0;i<text.length;i++){
     const char=text[i];
     if(quoted){if(char==='"'&&text[i+1]==='"'){field+='"';i++}else if(char==='"')quoted=false;else field+=char}
     else if(char==='"'&&field==='')quoted=true;
-    else if(char===','){row.push(field);field=''}
+    else if(char===delimiter){row.push(field);field=''}
     else if(char==='\n'){row.push(field);table.push(row);row=[];field=''}
     else if(char!=='\r')field+=char;
   }
@@ -79,10 +97,16 @@ function numberValue(value,label,rowNumber,{integer=false,required=false}={}){
 function validateCsv(text){
   const data=parseCsv(text.replace(/^\uFEFF/,''));
   if(data.length<2)throw new Error('The CSV contains headers but no medicine rows.');
-  const headers=data[0].map(header=>header.trim().toLowerCase());
+  const aliases={medicine:'name',medicine_name:'name',medication:'name',medication_name:'name',product_name:'name',item_name:'name',drug_name:'name',qty:'quantity',stock:'quantity',quantity_in_stock:'quantity',opening_stock:'quantity',opening_quantity:'quantity',buying_price:'purchase_price',purchase_cost:'purchase_price',cost_price:'purchase_price',unit_cost:'purchase_price',cost:'purchase_price',sale_price:'selling_price',sell_price:'selling_price',retail_price:'selling_price',batch_no:'batch_number',expiry:'expiry_date'};
+  const headers=data[0].map(header=>{
+    const normalized=header.replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+    return aliases[normalized]||normalized;
+  });
   if(headers.some(header=>!header))throw new Error('Every CSV column must have a header.');
-  if(new Set(headers).size!==headers.length)throw new Error('The CSV contains duplicate column headers.');
-  for(const required of ['name','quantity','purchase_price','selling_price'])if(!headers.includes(required))throw new Error(`Required CSV column missing: ${required}.`);
+  if(new Set(headers).size!==headers.length)throw new Error('The CSV has duplicate columns after normalizing their names.');
+  const missing=['name','quantity','purchase_price','selling_price'].filter(required=>!headers.includes(required));
+  if(missing.includes('name'))throw new Error('Medicine name column not found. Use the header name or medicine_name, or download the CSV template for a sample file.');
+  if(missing.length)throw new Error(`Required medicine columns missing: ${missing.join(', ')}. Download the CSV template for the required headings.`);
   if(data.length>5001)throw new Error('Import up to 5,000 medicines at a time.');
   const seenBarcodes=new Set();
   return data.slice(1).map((cells,index)=>{
@@ -144,8 +168,9 @@ importButton.onclick=async()=>{
     csvMsg.textContent=cleanupError?`Inventory setup failed (${stockError.message}) and cleanup failed (${cleanupError.message}). Contact an administrator.`:`Import was rolled back because inventory setup failed: ${stockError.message}`;
     importButton.disabled=false;return;
   }
-  csvMsg.textContent=`Successfully added ${medicineRows.length} medicines.`;
-  csvRows=[];csvFile.value='';csvPreview.hidden=true;await load();
+  csvRows=[];csvFile.value='';csvPreview.hidden=true;
+  const refreshed=await revealCatalogue();
+  csvMsg.textContent=refreshed?`Successfully added ${medicineRows.length} medicines. They now appear in the catalogue below.`:'Import completed, but the catalogue could not refresh. Reload this page to view the imported medicines.';
 };
 $('#downloadTemplate').onclick=()=>{
   const contents='name,generic_name,brand,manufacturer,barcode,strength,dosage_form,unit,quantity,batch_number,expiry_date,purchase_price,selling_price,min_stock,reorder_level,prescription_required,controlled_medicine\nParacetamol,Paracetamol,Example Brand,Example Manufacturer,1234567890123,500mg,Tablet,tablet,100,BATCH-001,2027-12-31,10,15,20,20,no,no\n';
