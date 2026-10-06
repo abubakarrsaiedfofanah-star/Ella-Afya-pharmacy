@@ -56,6 +56,7 @@ async function load(){
 }
 
 let catalogRefreshInProgress=false;
+let catalogSignature='';
 async function refreshCatalog(){
   if(catalogRefreshInProgress||document.visibilityState!=='visible')return;
   catalogRefreshInProgress=true;
@@ -65,7 +66,11 @@ async function refreshCatalog(){
       supabase.from('batches').select('id,medicine_id,batch_number,expiry_date,quantity').gte('expiry_date',new Date().toISOString().slice(0,10)).gt('quantity',0).order('expiry_date')
     ]);
     if(medicineError)return;
-    medicines=medicineData||[];batches=batchData||[];
+    const nextMedicines=medicineData||[],nextBatches=batchData||[];
+    const nextSignature=JSON.stringify([nextMedicines,nextBatches]);
+    if(nextSignature===catalogSignature)return;
+    catalogSignature=nextSignature;
+    medicines=nextMedicines;batches=nextBatches;
     if(!activeSaleId)cart=cart.filter(line=>medicines.some(medicine=>medicine.id===line.id)).map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return {...line,name:current.name,price:Number(current.selling_price)}});
     renderMedicines();renderCart();
   }finally{catalogRefreshInProgress=false}
@@ -282,9 +287,9 @@ updatePaymentFields();
 if(matchMedia('(min-width: 901px)').matches)$('#search').focus({preventScroll:true});
 load();
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshCatalog()});
-window.setInterval(refreshCatalog,5000);
+window.setInterval(refreshCatalog,60000);
 let checkingClaimStatus=false;
-window.setInterval(async()=>{
+async function checkClaimStatuses(){
   if(checkingClaimStatus||!awaitingApprovalSaleIds.length||document.visibilityState!=='visible')return;
   checkingClaimStatus=true;
   try{
@@ -299,4 +304,13 @@ window.setInterval(async()=>{
     else message.textContent=`Admin rejected the M-Pesa code for ${rejected.map(item=>item.sale_number).join(', ')}. Check the customer's payment message and contact Admin.`;
     await refreshCatalog();
   }finally{checkingClaimStatus=false}
-},4000);
+}
+const posRealtime=supabase.channel('seller-pos-live-updates')
+  .on('postgres_changes',{event:'*',schema:'public',table:'medicines'},()=>void refreshCatalog())
+  .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},()=>void refreshCatalog())
+  .on('postgres_changes',{event:'*',schema:'public',table:'batches'},()=>void refreshCatalog())
+  .on('postgres_changes',{event:'UPDATE',schema:'public',table:'sales'},()=>void checkClaimStatuses())
+  .subscribe();
+window.setInterval(checkClaimStatuses,30000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void checkClaimStatuses()});
+window.addEventListener('pagehide',()=>{void supabase.removeChannel(posRealtime)},{once:true});

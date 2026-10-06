@@ -4,7 +4,7 @@ await requireUser(['admin']);
 
 const rows=document.querySelector('#rows'),msg=document.querySelector('#msg'),claimRows=document.querySelector('#claimRows'),claimMsg=document.querySelector('#claimMsg'),statementFile=document.querySelector('#statementFile'),statementMsg=document.querySelector('#statementMsg'),statementPreview=document.querySelector('#statementPreview'),importStatementButton=document.querySelector('#importStatement'),esc=window.pharmacyUI.escapeHtml;
 const money=value=>`KSh ${Number(value||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:2})}`;
-let loading=false;
+let loading=false,reloadQueued=false;
 let statementRows=[];
 
 function parseCsv(text){
@@ -60,7 +60,7 @@ importStatementButton.addEventListener('click',async()=>{
   const {data,error}=await supabase.rpc('admin_import_mpesa_statement',{p_transactions:statementRows,p_source_name:file.name});
   if(error){statementMsg.textContent=`Import failed: ${error.message}`;importStatementButton.disabled=false;return}
   statementMsg.textContent=`Import complete: ${data.new_transactions} new transaction(s), ${data.matched_claims} sale(s) completed, ${data.amount_mismatches} amount mismatch(es) rejected, ${data.unmatched_transactions} transaction(s) waiting for a seller claim.`;
-  statementRows=[];statementFile.value='';await load();
+  statementRows=[];statementFile.value='';await Promise.all([load(),loadClaims()]);
 });
 
 async function loadClaims(){
@@ -71,18 +71,19 @@ async function loadClaims(){
 }
 
 async function load(){
-  if(loading||document.visibilityState!=='visible')return;
+  if(document.visibilityState!=='visible')return;
+  if(loading){reloadQueued=true;return}
   loading=true;
   const {data:sales,error}=await supabase.from('sales').select('id,sale_number,total_amount,status,created_at,seller_id').order('created_at',{ascending:false}).limit(100);
-  if(error){msg.textContent='Sales could not be loaded. Try refreshing the page.';loading=false;return}
+  if(error){msg.textContent='Sales could not be loaded. Try refreshing the page.';finishLoad();return}
   const ids=(sales||[]).map(sale=>sale.id),sellerIds=[...new Set((sales||[]).map(sale=>sale.seller_id))];
-  if(!ids.length){rows.innerHTML='<tr><td colspan="6">No sales recorded.</td></tr>';msg.textContent='';await loadClaims();loading=false;return}
+  if(!ids.length){rows.innerHTML='<tr><td colspan="6">No sales recorded.</td></tr>';msg.textContent='';finishLoad();return}
   const [itemsResult,profilesResult,paymentsResult]=await Promise.all([
     supabase.from('sale_items').select('sale_id,quantity,unit_price,total,medicines(name,strength)').in('sale_id',ids),
     supabase.from('profiles').select('id,full_name').in('id',sellerIds),
     supabase.from('payments').select('sale_id,amount,method,status,verification_source,mpesa_receipt').in('sale_id',ids)
   ]);
-  if(itemsResult.error||profilesResult.error||paymentsResult.error){msg.textContent='Sale details could not be loaded. Check the Admin data permissions.';loading=false;return}
+  if(itemsResult.error||profilesResult.error||paymentsResult.error){msg.textContent='Sale details could not be loaded. Check the Admin data permissions.';finishLoad();return}
   const staff=new Map((profilesResult.data||[]).map(profile=>[profile.id,profile.full_name||'Sales staff']));
   const bySale=new Map();for(const item of itemsResult.data||[]){const bucket=bySale.get(item.sale_id)||[];bucket.push(item);bySale.set(item.sale_id,bucket)}
   const payBySale=new Map();for(const payment of paymentsResult.data||[]){const bucket=payBySale.get(payment.sale_id)||[];bucket.push(payment);payBySale.set(payment.sale_id,bucket)}
@@ -94,12 +95,16 @@ async function load(){
     const verification=manualCodes.length?`<small class="manual-verification">Manual M-Pesa: ${manualCodes.join(', ')}</small>`:'';
     return `<tr><td><strong>${esc(sale.sale_number)}</strong><small>${esc(new Date(sale.created_at).toLocaleString())}</small></td><td>${esc(staff.get(sale.seller_id)||'Sales staff')}</td><td>${products}</td><td>${money(sale.total_amount)}</td><td><span class="sale-status sale-${esc(sale.status)}">${esc(sale.status.replaceAll('_',' '))}</span></td><td>${esc(methods)}${verification}</td></tr>`
   }).join('');
-  msg.textContent=`Showing ${sales.length} latest sales. Updates every few seconds while this page is open.`;
-  loading=false;
-  await loadClaims();
+  msg.textContent=`Showing ${sales.length} latest sales. Live updates are enabled.`;
+  finishLoad();
 }
 
-load();
+function finishLoad(){
+  loading=false;
+  if(reloadQueued){reloadQueued=false;window.setTimeout(()=>void load(),0)}
+}
+
+load();loadClaims();
 document.querySelector('#refreshSales').addEventListener('click',load);
 claimRows.addEventListener('click',async event=>{
   const button=event.target.closest('[data-claim]');if(!button||button.disabled)return;
@@ -109,8 +114,12 @@ claimRows.addEventListener('click',async event=>{
   const {error}=await supabase.rpc('admin_review_manual_mpesa_claim',{p_claim_id:button.dataset.claim,p_approve:approved});
   if(error){claimMsg.textContent=error.message;button.disabled=false;return}
   claimMsg.textContent=approved?'Payment approved. Sale completed and stock updated.':'Payment claim rejected. The sale remains pending.';
-  await load();
+  await Promise.all([load(),loadClaims()]);
 });
-const refreshTimer=window.setInterval(load,4000);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')load()});
-window.addEventListener('pagehide',()=>window.clearInterval(refreshTimer),{once:true});
+const salesRealtime=supabase.channel('admin-sales-live-updates')
+  .on('postgres_changes',{event:'*',schema:'public',table:'sales'},()=>{if(loading)reloadQueued=true;else void load()})
+  .subscribe();
+const salesRefreshTimer=window.setInterval(load,30000);
+const claimsRefreshTimer=window.setInterval(loadClaims,10000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){void load();void loadClaims()}});
+window.addEventListener('pagehide',()=>{window.clearInterval(salesRefreshTimer);window.clearInterval(claimsRefreshTimer);void supabase.removeChannel(salesRealtime)},{once:true});
