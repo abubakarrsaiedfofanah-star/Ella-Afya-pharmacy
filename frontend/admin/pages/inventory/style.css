@@ -5,3 +5,4 @@
 #medicineCatalog{scroll-margin-top:24px}.csv-import #importCsv:not(:disabled){cursor:pointer}.csv-import #importCsv:disabled{cursor:not-allowed}
 .csv-import .csv-error-row{background:#fff1f0;color:#8b1e16}
 .catalog-price{box-sizing:border-box;width:112px;min-width:90px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}.catalog-price:disabled{padding:0;border:0;background:transparent}.csv-import #importCsv{margin-top:10px}#catalogMsg{min-height:1.2em;color:var(--muted)}#medicineCatalog .table{min-width:1000px}
+.catalog-clear{display:flex;justify-content:flex-end;margin-top:16px}.catalog-clear .danger{background:#a12727;color:#fff;border-color:#a12727}.catalog-clear .danger:hover{background:#851d1d}

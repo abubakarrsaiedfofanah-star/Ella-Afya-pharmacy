@@ -18,7 +18,7 @@ function validExpiryDate(value){
 
 async function load(){
   const [{data,error},{data:purchasePrices, error:priceError}]=await Promise.all([
-    supabase.from('medicines').select('id,name,generic_name,brand,manufacturer,barcode,strength,dosage_form,selling_price,prescription_required,controlled_medicine,min_stock,reorder_level,inventory(quantity)').order('name'),
+    supabase.from('medicines').select('id,name,generic_name,brand,manufacturer,barcode,strength,dosage_form,selling_price,prescription_required,controlled_medicine,min_stock,reorder_level,active,inventory(quantity)').order('name'),
     supabase.from('admin_medicine_purchase_catalog').select('id,purchase_price'),
   ]);
   if(error){msg.textContent=error.message;return false}
@@ -27,7 +27,7 @@ async function load(){
   medicines=(data||[]).map(item=>({...item,purchase_price:costs.get(item.id)??null}));render();return true;
 }
 async function revealCatalogue(){
-  search.value='';filter.value='all';
+  search.value='';filter.value='active';
   const loaded=await load();
   document.querySelector('#medicineCatalog')?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
   return loaded;
@@ -36,8 +36,11 @@ function render(){
   const query=search.value.toLowerCase(),mode=filter.value;
   rows.innerHTML=medicines.filter(item=>`${item.name} ${item.generic_name||''} ${item.barcode||''}`.toLowerCase().includes(query)).filter(item=>{
     const quantity=item.inventory?.[0]?.quantity??0;
+    if(mode==='active')return item.active;
+    if(mode==='inactive')return !item.active;
+    if(!item.active&&mode!=='all')return false;
     return mode==='low'?quantity<=item.min_stock:mode==='out'?quantity===0:mode==='rx'?item.prescription_required:true;
-  }).map(item=>`<tr data-medicine-row="${escapeHtml(item.id)}"><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td><input class="catalog-price" data-price="buying" type="number" min="0" step="0.01" value="${item.purchase_price??''}" aria-label="Buying price for ${escapeHtml(item.name)}" disabled></td><td><input class="catalog-price" data-price="selling" type="number" min="0" step="0.01" value="${Number(item.selling_price)}" aria-label="Selling price for ${escapeHtml(item.name)}" disabled></td><td>${item.inventory?.[0]?.quantity??0}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td><td><button class="btn secondary" type="button" data-edit-prices="${escapeHtml(item.id)}">Edit prices</button></td></tr>`).join('')||'<tr><td colspan="10">No medicines found.</td></tr>';
+  }).map(item=>`<tr data-medicine-row="${escapeHtml(item.id)}"><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}${item.active?'':' · Inactive'}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td><input class="catalog-price" data-price="buying" type="number" min="0" step="0.01" value="${item.purchase_price??''}" aria-label="Buying price for ${escapeHtml(item.name)}" disabled></td><td><input class="catalog-price" data-price="selling" type="number" min="0" step="0.01" value="${Number(item.selling_price)}" aria-label="Selling price for ${escapeHtml(item.name)}" disabled></td><td>${item.inventory?.[0]?.quantity??0}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td><td>${item.active?`<button class="btn secondary" type="button" data-edit-prices="${escapeHtml(item.id)}">Edit prices</button>`:`<button class="btn secondary" type="button" data-restore="${escapeHtml(item.id)}">Restore</button>`}</td></tr>`).join('')||'<tr><td colspan="10">No medicines found.</td></tr>';
   rows.querySelectorAll('[data-edit-prices]').forEach(button=>button.addEventListener('click',()=>{
     const row=button.closest('[data-medicine-row]');
     row.querySelectorAll('[data-price]').forEach(input=>{input.disabled=false});
@@ -55,6 +58,12 @@ function render(){
       if(error){catalogMsg.textContent=`Prices could not be saved: ${error.message}`;save.disabled=false;return}
       await load();catalogMsg.textContent='Prices saved.';
     });
+  }));
+  rows.querySelectorAll('[data-restore]').forEach(button=>button.addEventListener('click',async()=>{
+    button.disabled=true;catalogMsg.textContent='Restoring medicine…';
+    const {error}=await supabase.from('medicines').update({active:true}).eq('id',button.dataset.restore);
+    if(error){catalogMsg.textContent=`Medicine could not be restored: ${error.message}`;button.disabled=false;return}
+    await load();catalogMsg.textContent='Medicine restored.';
   }));
 }
 form.onsubmit=async event=>{
@@ -77,6 +86,16 @@ form.onsubmit=async event=>{
   form.reset();await revealCatalogue();
 };
 search.oninput=render;filter.onchange=render;
+$('#clearCatalog').addEventListener('click',async()=>{
+  const activeCount=medicines.filter(item=>item.active).length;
+  if(!activeCount){catalogMsg.textContent='There are no active medicines to clear.';return}
+  if(!confirm(`Clear all ${activeCount} active medicines? They will be hidden from Sales and stock will be set to zero. Sales history will be kept.`))return;
+  const button=$('#clearCatalog');button.disabled=true;catalogMsg.textContent='Clearing catalogue…';
+  const {data,error}=await supabase.rpc('admin_clear_medicine_catalog');
+  button.disabled=false;
+  if(error){catalogMsg.textContent=`Catalogue could not be cleared: ${error.message}`;return}
+  filter.value='active';await load();catalogMsg.textContent=`${Number(data?.archived_medicines||activeCount)} medicines cleared.`;
+});
 
 function parseCsv(text){
   const firstLine=text.split(/\r?\n/,1)[0]||'';
