@@ -19,6 +19,7 @@ const totalElement=$('#total');
 const message=$('#msg');
 const prescription=$('#prescription');
 const money=value=>`KSh ${Number(value||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:2})}`;
+const toCents=value=>Math.round(Number(value||0)*100),fromCents=value=>value/100;
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const medicineStock=medicine=>Number(Array.isArray(medicine.inventory)?medicine.inventory[0]?.quantity:medicine.inventory?.quantity)||0;
 const stockLimit=medicine=>medicine.min_stock==null?5:Number(medicine.min_stock);
@@ -105,7 +106,7 @@ function renderCart(){
     if(item.quantity>cartAvailable(item)){item.quantity=Math.max(1,cartAvailable(item));message.textContent='Quantity adjusted to the available selected batch.'}
     renderCart();
   }));
-  const total=cart.reduce((sum,item)=>sum+item.price*item.quantity,0);
+  const total=fromCents(cart.reduce((sum,item)=>sum+toCents(item.price)*item.quantity,0));
   totalElement.textContent=money(total);
   $('#tillAmount').textContent=money(total);
   $('#outstanding').textContent=`Outstanding: ${money(outstanding||total)}`;
@@ -147,14 +148,14 @@ async function showReceipt(saleId,saleNumber=saleId){
   printButton.disabled=true;
   const [{data:sale,error},{data:saleItems,error:itemsError}]=await Promise.all([
     supabase.from('sales').select('created_at,total_amount,authorized_signature_path,authorized_signature_name,signature_applied_at').eq('id',saleId).single(),
-    supabase.from('sale_items').select('quantity,total,medicines(name,strength)').eq('sale_id',saleId),
+    supabase.from('sale_items').select('quantity,unit_price,total,medicines(name,strength)').eq('sale_id',saleId),
   ]);
   if(error||itemsError||!sale?.authorized_signature_path||!sale.authorized_signature_name||!sale.signature_applied_at){body.innerHTML='<p>The signed receipt could not be prepared. Ask the Admin to check the receipt signature settings.</p>';$('#receiptPreview').hidden=false;return}
   const {data:signature,error:signatureError}=await supabase.storage.from('receipt-signatures').createSignedUrl(sale.authorized_signature_path,300);
   if(signatureError||!signature?.signedUrl){body.innerHTML='<p>The receipt signature is unavailable. Ask the Admin to check private signature storage.</p>';$('#receiptPreview').hidden=false;return}
   const verifyUrl=`${location.origin}/verify/?receipt=${encodeURIComponent(saleNumber)}`;
   const itemCount=(saleItems||[]).reduce((sum,item)=>sum+Number(item.quantity||0),0),productCount=(saleItems||[]).length;
-  body.innerHTML=`<p><span>Receipt number</span><strong>${escapeHtml(saleNumber)}</strong></p>${customerName?`<p><span>Buyer</span><strong>${escapeHtml(customerName)}</strong></p>`:''}${customerPhone?`<p><span>Buyer phone</span><strong>${escapeHtml(customerPhone)}</strong></p>`:''}<p><span>Completed</span><strong>${escapeHtml(new Date(sale.created_at).toLocaleString())}</strong></p>${(saleItems||[]).map(item=>`<p><span>${escapeHtml(item.medicines?.name||'Medicine')} ${escapeHtml(item.medicines?.strength||'')} x ${Number(item.quantity||0)}</span><strong>${money(item.total)}</strong></p>`).join('')}<p><span>Total drugs</span><strong>${itemCount} unit${itemCount===1?'':'s'} across ${productCount} medicine${productCount===1?'':'s'}</strong></p><p class="receipt-grand-total"><span>Total paid</span><strong>${money(sale.total_amount)}</strong></p>${lastCashTendered>0?`<p><span>Cash received</span><strong>${money(lastCashTendered)}</strong></p><p><span>Change</span><strong>${money(lastCashChange)}</strong></p>`:''}<div class="receipt-admin-signature"><img src="${escapeHtml(signature.signedUrl)}" alt="Authorized administrator signature"><div>Authorized by <strong>${escapeHtml(sale.authorized_signature_name)}</strong></div><small>Verify this receipt: <a href="${escapeHtml(verifyUrl)}">${escapeHtml(verifyUrl)}</a></small></div>`;
+  body.innerHTML=`<p><span>Receipt number</span><strong>${escapeHtml(saleNumber)}</strong></p>${customerName?`<p><span>Buyer</span><strong>${escapeHtml(customerName)}</strong></p>`:''}${customerPhone?`<p><span>Buyer phone</span><strong>${escapeHtml(customerPhone)}</strong></p>`:''}<p><span>Completed</span><strong>${escapeHtml(new Date(sale.created_at).toLocaleString())}</strong></p>${(saleItems||[]).map(item=>`<p><span>${escapeHtml(item.medicines?.name||'Medicine')} ${escapeHtml(item.medicines?.strength||'')}<br>${money(item.unit_price)} × ${Number(item.quantity||0)}</span><strong>${money(item.total)}</strong></p>`).join('')}<p><span>Total drugs</span><strong>${itemCount} unit${itemCount===1?'':'s'} across ${productCount} medicine${productCount===1?'':'s'}</strong></p><p class="receipt-grand-total"><span>Total paid</span><strong>${money(sale.total_amount)}</strong></p>${lastCashTendered>0?`<p><span>Cash received</span><strong>${money(lastCashTendered)}</strong></p><p><span>Change</span><strong>${money(lastCashChange)}</strong></p>`:''}<div class="receipt-admin-signature"><img src="${escapeHtml(signature.signedUrl)}" alt="Authorized administrator signature"><div>Authorized by <strong>${escapeHtml(sale.authorized_signature_name)}</strong></div><small>Verify this receipt: <a href="${escapeHtml(verifyUrl)}">${escapeHtml(verifyUrl)}</a></small></div>`;
   printButton.disabled=false;
   $('#receiptPreview').hidden=false;
   $('#receiptPreview').scrollIntoView({behavior:'smooth',block:'nearest'});
@@ -188,7 +189,10 @@ $('#checkout').addEventListener('click',async()=>{
     button.disabled=false;
     if(error){message.textContent=error.message;return}
     if(!saleId){await load();message.textContent='A medicine price changed or did not match the current catalogue. The sale was blocked and logged for Admin review. Check the updated prices and try again.';return}
-    activeSaleId=saleId;outstanding=cart.reduce((sum,item)=>sum+item.price*item.quantity,0);
+    activeSaleId=saleId;
+    const {data:savedSale,error:savedSaleError}=await supabase.from('sales').select('total_amount').eq('id',saleId).single();
+    if(savedSaleError||!savedSale){message.textContent='Sale saved as pending, but its total could not be loaded. Refresh and resume the pending sale before taking payment.';return}
+    outstanding=Number(savedSale.total_amount);
     saleJustCreated=true;
   }
   button.disabled=true;
@@ -213,14 +217,15 @@ $('#checkout').addEventListener('click',async()=>{
     await completeMpesaSale(completedSaleId);
     return;
   }
-  const amountToRecord=method==='cash'?Math.min(amount,outstanding):amount;
-  const changeDue=method==='cash'?Math.max(0,amount-amountToRecord):0;
+  const normalizedAmount=fromCents(toCents(amount));
+  const amountToRecord=method==='cash'?fromCents(Math.min(toCents(normalizedAmount),toCents(outstanding))):normalizedAmount;
+  const changeDue=method==='cash'?fromCents(Math.max(0,toCents(normalizedAmount)-toCents(amountToRecord))):0;
   const {data:remaining,error}=await supabase.rpc('add_manual_sale_payment',{p_sale_id:activeSaleId,p_method:method,p_amount:amountToRecord,p_reference:$('#reference').value.trim()||null});
   button.disabled=false;
   if(error){message.textContent=error.message;return}
   outstanding=Number(remaining||0);
   if(outstanding>0){message.textContent=`Payment recorded. Remaining ${money(outstanding)}.`;renderCart();updatePaymentFields();return}
-  if(method==='cash'){lastCashTendered=amount;lastCashChange=changeDue}
+  if(method==='cash'){lastCashTendered=normalizedAmount;lastCashChange=changeDue}
   const completedSaleId=activeSaleId;
   message.textContent=method==='cash'&&changeDue>0?`Sale fully paid. Return ${money(changeDue)} change. Stock update confirmed by the server.`:'Sale fully paid. Stock update confirmed by the server.';
   const confirmedSale=await loadReceiptReference(completedSaleId);
