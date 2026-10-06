@@ -56,3 +56,17 @@ filters.forEach(button=>button.addEventListener('click',()=>{
       :`Showing ${visibleCount} ${label} service${visibleCount===1?'':'s'}.`;
   }
 }));
+
+const photoCarousel=document.querySelector('[data-photo-carousel]');
+if(photoCarousel){
+  const slides=[...photoCarousel.querySelectorAll('[data-photo-slide]')];
+  const status=photoCarousel.querySelector('[data-photo-status]');
+  let activeSlide=0;
+  const showSlide=index=>{
+    activeSlide=(index+slides.length)%slides.length;
+    slides.forEach((slide,slideIndex)=>{slide.hidden=slideIndex!==activeSlide});
+    if(status)status.textContent=`Photo ${activeSlide+1} of ${slides.length}`;
+  };
+  photoCarousel.querySelector('[data-photo-prev]')?.addEventListener('click',()=>showSlide(activeSlide-1));
+  photoCarousel.querySelector('[data-photo-next]')?.addEventListener('click',()=>showSlide(activeSlide+1));
+}
