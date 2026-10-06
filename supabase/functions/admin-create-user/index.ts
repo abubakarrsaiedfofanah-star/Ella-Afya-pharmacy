@@ -22,6 +22,38 @@ Deno.serve(async req=>{
   // also supports public registration. Verify admin tokens and MFA here.
   const isAdmin=callerProfile?.role==='admin'&&callerProfile.active&&hasVerifiedAal2(token);
 
+  if(body.action==='list_sellers'){
+    if(!isAdmin)return json({error:'An MFA-verified Admin session is required.'},403);
+    const {data:profiles,error:profilesError}=await admin.from('profiles').select('id,full_name,active,created_at').eq('role','seller').order('created_at',{ascending:false});
+    if(profilesError)return json({error:'Seller accounts could not be loaded.'},500);
+    const sellers=await Promise.all((profiles||[]).map(async profile=>{
+      const {data,error}=await admin.auth.admin.getUserById(profile.id);
+      if(error)console.error('Could not retrieve seller email',profile.id,error);
+      return {...profile,email:error?null:data.user?.email||null};
+    }));
+    return json({sellers});
+  }
+
+  if(body.action==='delete_seller'){
+    if(!isAdmin)return json({error:'An MFA-verified Admin session is required.'},403);
+    const userId=typeof body.user_id==='string'?body.user_id:'';
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId))return json({error:'Invalid seller account.'},400);
+    const {data:target,error:targetError}=await admin.from('profiles').select('id,role').eq('id',userId).maybeSingle();
+    if(targetError||!target||target.role!=='seller')return json({error:'Seller account not found.'},404);
+    const {count,error:salesError}=await admin.from('sales').select('id',{count:'exact',head:true}).eq('seller_id',userId);
+    if(salesError)return json({error:'Could not check the seller sales history. No account was deleted.'},500);
+    if((count||0)>0)return json({error:'This seller has sales history. Disable the account to preserve pharmacy records.'},409);
+    const {error:auditError}=await admin.from('audit_logs').insert({actor_id:caller!.id,action:'seller_account_deletion_authorized',entity_type:'profiles',entity_id:userId,details:{seller_id:userId}});
+    if(auditError)return json({error:'Deletion could not be audited, so no account was deleted.'},500);
+    const {error:deleteError}=await admin.auth.admin.deleteUser(userId);
+    if(deleteError){
+      await admin.from('audit_logs').insert({actor_id:caller!.id,action:'seller_account_deletion_failed',entity_type:'profiles',entity_id:userId,details:{reason:'auth_delete_failed'}});
+      console.error('Seller account deletion failed',userId,deleteError);
+      return json({error:'The account has linked records and could not be deleted. Disable it to block sign-in while preserving records.'},409);
+    }
+    return json({ok:true,user_id:userId,deleted:true});
+  }
+
   if(body.action==='set_seller_active'){
     if(!isAdmin)return json({error:'An MFA-verified Admin session is required.'},403);
     const userId=typeof body.user_id==='string'?body.user_id:'';

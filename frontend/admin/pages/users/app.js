@@ -9,10 +9,10 @@ const rows=$('#rows'),msg=$('#msg'),createMsg=$('#createMsg'),permSeller=$('#per
 
 async function loadSellers(){
   rows.innerHTML='<tr><td colspan="5">Loading staff accounts…</td></tr>';
-  const {data,error}=await supabase.from('profiles').select('id,full_name,role,active,created_at').eq('role','seller').order('created_at',{ascending:false});
-  if(error){rows.innerHTML='<tr><td colspan="5">Staff accounts could not be loaded.</td></tr>';msg.textContent='Try refreshing the staff list.';return []}
-  const sellers=data||[];
-  rows.innerHTML=sellers.map(item=>`<tr><td><strong>${esc(item.full_name||'Seller')}</strong></td><td class="muted">${esc(item.id.slice(0,8))}…</td><td><span class="status ${item.active?'status-ok':'status-off'}">${item.active?'Active':'Inactive'}</span></td><td>${esc(new Date(item.created_at).toLocaleDateString())}</td><td><button type="button" class="btn secondary action" data-id="${esc(item.id)}" data-active="${item.active}">${item.active?'Disable':'Activate'}</button>${item.active?' <button type="button" class="btn secondary action" data-id="'+esc(item.id)+'" data-active="true" data-confirm="true">Fix sign-in</button>':''}</td></tr>`).join('')||'<tr><td colspan="5">No seller accounts found.</td></tr>';
+  const {data,error}=await supabase.functions.invoke('admin-create-user',{body:{action:'list_sellers'}});
+  if(error||data?.error){rows.innerHTML='<tr><td colspan="5">Staff accounts could not be loaded.</td></tr>';msg.textContent=data?.error||'Refresh your administrator session and try again.';return []}
+  const sellers=data?.sellers||[];
+  rows.innerHTML=sellers.map(item=>`<tr><td><strong>${esc(item.full_name||'Seller')}</strong></td><td class="muted" title="${esc(item.email||'Email unavailable')}">${esc(item.email||'Email unavailable')}</td><td><span class="status ${item.active?'status-ok':'status-off'}">${item.active?'Active':'Inactive'}</span></td><td>${esc(new Date(item.created_at).toLocaleDateString())}</td><td><button type="button" class="btn secondary action" data-id="${esc(item.id)}" data-active="${item.active}">${item.active?'Disable':'Activate'}</button>${item.active?' <button type="button" class="btn secondary action" data-id="'+esc(item.id)+'" data-active="true" data-confirm="true">Fix sign-in</button>':''} <button type="button" class="btn secondary action" data-id="${esc(item.id)}" data-delete="true" aria-label="Delete ${esc(item.full_name||'seller')} account">Delete</button></td></tr>`).join('')||'<tr><td colspan="5">No seller accounts found.</td></tr>';
   return sellers;
 }
 
@@ -35,6 +35,15 @@ async function loadPermissionSellers(){
 rows.addEventListener('click',async event=>{
   const button=event.target.closest('.action');
   if(!button||button.disabled)return;
+  if(button.dataset.delete==='true'){
+    if(!window.confirm('Permanently delete this seller login? Accounts with sales history will be kept and must be disabled instead.'))return;
+    button.disabled=true;
+    const {data,error}=await supabase.functions.invoke('admin-create-user',{body:{action:'delete_seller',user_id:button.dataset.id}});
+    if(error||data?.error){msg.textContent=data?.error||'Seller account could not be deleted.';button.disabled=false;return}
+    msg.textContent='Seller account deleted.';
+    await loadSellers();await loadPermissionSellers();
+    return;
+  }
   button.disabled=true;
   const shouldBeActive=button.dataset.confirm==='true'||button.dataset.active!=='true';
   const {data,error}=await supabase.functions.invoke('admin-create-user',{body:{action:'set_seller_active',user_id:button.dataset.id,active:shouldBeActive}});
