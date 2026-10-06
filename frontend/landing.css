@@ -196,3 +196,18 @@ img{max-width:100%}
   .art-summary p{font-size:7px}.art-tabs span{font-size:7px}
   .photo-carousel-controls{gap:10px}
 }
+/* More comfortable touch and keyboard use at every viewport */
+:where(a,button,summary,[tabindex]):focus-visible{outline:3px solid #26a984;outline-offset:3px}
+@media(hover:none){.button:hover,.feature-card:hover,.workflow-card:hover{transform:none;box-shadow:none}}
+@media(max-width:760px){
+  .site-menu summary{width:46px;height:46px}
+  .site-menu nav a{min-height:44px;display:flex;align-items:center}
+  .service-filters button{min-height:44px;padding-inline:15px}
+  .photo-carousel-controls button{width:46px;height:46px}
+  .button{min-height:48px}
+  .faq-list summary{min-height:64px;gap:12px}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
