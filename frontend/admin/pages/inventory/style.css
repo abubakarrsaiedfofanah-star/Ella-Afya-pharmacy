@@ -3,3 +3,4 @@
 @media(max-width:650px){.csv-import .page-head{align-items:flex-start}.csv-import .page-head .btn{width:100%}.csv-file-label{display:block;width:max-content}}
 
 #medicineCatalog{scroll-margin-top:24px}.csv-import #importCsv:not(:disabled){cursor:pointer}.csv-import #importCsv:disabled{cursor:not-allowed}
+.csv-import .csv-error-row{background:#fff1f0;color:#8b1e16}

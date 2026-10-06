@@ -139,13 +139,27 @@ function renderPreview(items,warnings=[]){
   const summary=items.length>preview.length?`Previewing ${preview.length} of ${items.length} medicines.`:`${items.length} medicine${items.length===1?'':'s'} ready to import.`;
   csvMsg.textContent=[summary,...warnings].join(' ');
 }
+function renderSheetPreview(text,errorMessage=''){
+  const data=parseCsv(text.replace(/^\uFEFF/,''));
+  const headerIndex=data.slice(0,20).findIndex(row=>row.some(cell=>normalizeHeader(cell)==='name'||['medicine','item','product','description'].includes(normalizeHeader(cell))));
+  const start=headerIndex<0?0:headerIndex;
+  const columns=data[start]||[];
+  const errorRow=Number(errorMessage.match(/Row (\d+)/)?.[1]);
+  const errorIndex=errorRow?errorRow-start-2:0;
+  const from=Math.max(0,Math.min(data.length-start-1,errorIndex>24?errorIndex-5:0));
+  const visible=data.slice(start+1+from,start+1+from+25);
+  if(!visible.length)return;
+  csvPreview.innerHTML=`<table class="table"><thead><tr>${columns.map((cell,index)=>`<th>${escapeHtml(cell||`Column ${index+1}`)}</th>`).join('')}</tr></thead><tbody>${visible.map((row,index)=>`<tr${errorRow===start+from+index+2?' class="csv-error-row"':''}>${columns.map((_,column)=>`<td>${escapeHtml(row[column]||'')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  csvPreview.hidden=false;
+}
+function normalizeHeader(value){return String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')}
 csvFile.onchange=async()=>{
   csvRows=[];importButton.disabled=true;csvPreview.hidden=true;csvPreview.replaceChildren();
   const file=csvFile.files?.[0];if(!file)return;
   if(file.size>10*1024*1024){csvMsg.textContent='File is too large. Maximum size is 10 MB.';return}
+  let csvText='';
   try{
     const extension=file.name.split('.').pop().toLowerCase();
-    let csvText;
     if(extension==='csv')csvText=await file.text();
     else if(['xlsx','xls'].includes(extension)){
       csvMsg.textContent='Reading Excel workbook…';
@@ -157,7 +171,7 @@ csvFile.onchange=async()=>{
     }else throw new Error('Choose an Excel workbook (.xlsx or .xls) or a CSV file.');
     const parsed=validateCsv(csvText);csvRows=parsed.items;renderPreview(csvRows,parsed.warnings);importButton.disabled=false;
   }
-  catch(error){csvMsg.textContent=error.message}
+  catch(error){csvMsg.textContent=`${error.message} Showing the sheet below so you can find and correct the problem.`;if(csvText)renderSheetPreview(csvText,error.message)}
 };
 importButton.onclick=async()=>{
   if(!csvRows.length)return;
