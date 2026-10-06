@@ -9,6 +9,7 @@ const form=$('#form'),rows=$('#rows'),msg=$('#msg'),search=$('#search'),filter=$
 const csvFile=$('#csvFile'),csvMsg=$('#csvMsg'),csvPreview=$('#csvPreview'),importButton=$('#importCsv');
 let medicines=[],csvRows=[];
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const stockQuantity=item=>{const stock=Array.isArray(item.inventory)?item.inventory[0]:item.inventory;return Number(stock?.quantity)||0};
 const localDate=()=>{const date=new Date();return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`};
 function validExpiryDate(value){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
@@ -35,12 +36,12 @@ async function revealCatalogue(){
 function render(){
   const query=search.value.toLowerCase(),mode=filter.value;
   rows.innerHTML=medicines.filter(item=>`${item.name} ${item.generic_name||''} ${item.barcode||''}`.toLowerCase().includes(query)).filter(item=>{
-    const quantity=item.inventory?.[0]?.quantity??0;
+    const quantity=stockQuantity(item);
     if(mode==='active')return item.active;
     if(mode==='inactive')return !item.active;
     if(!item.active&&mode!=='all')return false;
     return mode==='low'?quantity<=item.min_stock:mode==='out'?quantity===0:mode==='rx'?item.prescription_required:true;
-  }).map(item=>`<tr data-medicine-row="${escapeHtml(item.id)}"><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}${item.active?'':' · Inactive'}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td><input class="catalog-price" data-price="buying" type="number" min="0" step="0.01" value="${item.purchase_price??''}" aria-label="Buying price for ${escapeHtml(item.name)}" disabled></td><td><input class="catalog-price" data-price="selling" type="number" min="0" step="0.01" value="${Number(item.selling_price)}" aria-label="Selling price for ${escapeHtml(item.name)}" disabled></td><td>${item.inventory?.[0]?.quantity??0}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td><td>${item.active?`<button class="btn secondary" type="button" data-edit-prices="${escapeHtml(item.id)}">Edit prices</button>`:`<button class="btn secondary" type="button" data-restore="${escapeHtml(item.id)}">Restore</button>`}</td></tr>`).join('')||'<tr><td colspan="10">No medicines found.</td></tr>';
+  }).map(item=>`<tr data-medicine-row="${escapeHtml(item.id)}"><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}${item.active?'':' · Inactive'}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td><input class="catalog-price" data-price="buying" type="number" min="0" step="0.01" value="${item.purchase_price??''}" aria-label="Buying price for ${escapeHtml(item.name)}" disabled></td><td><input class="catalog-price" data-price="selling" type="number" min="0" step="0.01" value="${Number(item.selling_price)}" aria-label="Selling price for ${escapeHtml(item.name)}" disabled></td><td>${stockQuantity(item)}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td><td>${item.active?`<button class="btn secondary" type="button" data-edit-prices="${escapeHtml(item.id)}">Edit prices</button>`:`<button class="btn secondary" type="button" data-restore="${escapeHtml(item.id)}">Restore</button>`}</td></tr>`).join('')||'<tr><td colspan="10">No medicines found.</td></tr>';
   rows.querySelectorAll('[data-edit-prices]').forEach(button=>button.addEventListener('click',()=>{
     const row=button.closest('[data-medicine-row]');
     row.querySelectorAll('[data-price]').forEach(input=>{input.disabled=false});
