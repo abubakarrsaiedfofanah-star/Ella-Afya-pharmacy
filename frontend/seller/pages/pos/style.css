@@ -25,11 +25,19 @@
   .pos-grid>.card{padding:14px;border-radius:16px}
   .medicine{padding:12px 6px;gap:8px}
   .medicine button{min-width:44px;min-height:44px}
-  #method,#mpesaTransactionCode,#paymentAmount,#reference{width:100%;margin-top:8px}
+  #method,#paymentAmount,#mpesaTransactionCode,#reference{width:100%;margin-top:8px}
 }
 .stock-warning{color:#a34c00;font-weight:800}
 .medicine.low-stock{background:#fffaf1;border:1px solid #f4dfb7}
 .quantity-control button:disabled{opacity:.45;cursor:not-allowed}
+.pos-grid{grid-template-columns:minmax(0,1.45fr) minmax(360px,.85fr)}
+.cart-panel input,.cart-panel select{display:block;width:100%;min-width:0;max-width:100%;padding:11px 12px;border:1px solid #dce7e3;border-radius:11px;background:#fff}
+.cart-panel [hidden]{display:none!important}
+.cart-panel .field-label{display:block;margin:12px 0 6px}
+.cart-panel .checkout-button{width:100%}
+.medicine>span{min-width:0;overflow-wrap:anywhere}
+@media(min-width:901px){.pos-grid{grid-template-columns:minmax(0,1.5fr) minmax(380px,.9fr)}.cart-panel{position:sticky!important;top:16px;max-height:calc(100vh - 32px);overflow:auto}}
+@media(max-width:1100px) and (min-width:901px){.pos-grid{grid-template-columns:minmax(0,1.2fr) minmax(340px,.95fr);gap:12px}.pos-grid>.card{padding:15px}}
 .quantity-control .remove-line{width:auto;padding:0 9px;color:#9a342d;border-radius:8px}
 .cart-line{gap:12px}
 .till-instructions{margin:12px 0;padding:14px;border:1px solid #c9e2d8;border-radius:14px;background:#f1faf6}

@@ -7,41 +7,120 @@ const form = $('#payrollForm');
 const rows = $('#rows');
 const formMsg = $('#formMsg');
 const listMsg = $('#listMsg');
-let payrollRecords = [];
+const calculationBox = $('#payrollCalculation');
+const amountInput = $('#amountPaid');
+const calcFields = ['#basePay', '#additions', '#deductions'];
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const money = (value, currency = 'KES') => new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value || 0));
+let calculation = null;
+let signatureReady = false;
+let historyPage = 0;
+let historyCount = 0;
+let calculationRequest = 0;
+let calculationTimer;
+const historyPageSize = 100;
 
-async function printPayroll(payment, popup = window.open('', '_blank', 'width=460,height=720')) {
-  if (!popup) { formMsg.textContent = 'Allow pop-ups to print the payroll receipt.'; return; }
-  const { data, error } = await supabase.storage.from('receipt-signatures').createSignedUrl(payment.signature_path, 300);
-  if (error || !data?.signedUrl) { popup.close(); formMsg.textContent = 'The saved admin signature could not be loaded.'; return; }
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(payment.payroll_number)}</title><style>body{font:14px Arial;max-width:380px;margin:24px auto;color:#111}h1{text-align:center;font-size:20px}.muted{text-align:center;color:#555}.line{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid #ddd}.signature{text-align:center;margin-top:28px}.signature img{display:block;max-width:190px;max-height:75px;object-fit:contain;margin:0 auto 5px}</style></head><body><h1>Payroll payment receipt</h1><p class="muted">${escapeHtml(payment.payroll_number)}</p><div class="line"><span>Staff member</span><b>${escapeHtml(payment.staff_name)}</b></div><div class="line"><span>Pay month</span><b>${escapeHtml(payment.pay_month.slice(0,7))}</b></div><div class="line"><span>Amount paid</span><b>${escapeHtml(money(payment.amount,payment.currency_code))}</b></div><div class="line"><span>Method</span><b>${escapeHtml(payment.payment_method)}</b></div>${payment.payment_reference?`<div class="line"><span>Reference</span><b>${escapeHtml(payment.payment_reference)}</b></div>`:''}<div class="line"><span>Paid by</span><b>${escapeHtml(payment.paid_by_name)}</b></div><div class="line"><span>Date</span><b>${escapeHtml(new Date(payment.paid_at).toLocaleString())}</b></div><div class="signature"><img src="${escapeHtml(data.signedUrl)}" alt="Authorized administrator signature"><div>Authorized by <b>${escapeHtml(payment.signature_name)}</b></div></div><script>addEventListener('load',()=>{const image=document.querySelector('img');image.decode().then(()=>print()).catch(()=>document.body.insertAdjacentText('beforeend','Signature failed to load; receipt not printed.'))},{once:true})</script></body></html>`;
-  popup.document.open(); popup.document.write(html); popup.document.close();
+function monthDate() { return $('#payMonth').value ? `${$('#payMonth').value}-01` : null; }
+function calculationArgs() {
+  return {
+    p_staff_id: $('#staff').value,
+    p_pay_month: monthDate(),
+    p_base_pay: Number($('#basePay').value || 0),
+    p_additions: Number($('#additions').value || 0),
+    p_deductions: Number($('#deductions').value || 0),
+  };
+}
+
+function showCalculation(item) {
+  calculation = item;
+  calculationBox.hidden = !item;
+  if (!item) return;
+  const currency = item.currency_code || 'KES';
+  $('#calculationSummary').innerHTML = `<article><span>Base pay</span><strong>${escapeHtml(money(item.base_pay,currency))}</strong></article><article><span>Additions</span><strong>${escapeHtml(money(item.additions,currency))}</strong></article><article><span>Deductions</span><strong>${escapeHtml(money(item.deductions,currency))}</strong></article><article><span>Gross pay</span><strong>${escapeHtml(money(item.gross_pay,currency))}</strong></article><article><span>Net pay</span><strong>${escapeHtml(money(item.net_pay,currency))}</strong></article><article><span>Paid to date</span><strong>${escapeHtml(money(item.paid,currency))}</strong></article><article><span>Remaining balance</span><strong>${escapeHtml(money(item.balance,currency))}</strong></article>`;
+  $('#periodLocked').textContent = item.period_saved ? 'Saved pay calculation. Use these figures for all installments in this period.' : 'Preview only. Save this calculation before recording a payment.';
+  $('#saveCalculation').disabled = item.period_saved;
+  for (const selector of calcFields) $(selector).disabled = Boolean(item.period_saved);
+  updatePaymentButton();
+}
+
+function updatePaymentButton() {
+  const amount = Number(amountInput.value);
+  $('#recordPayment').disabled = !signatureReady || !calculation || !calculation.period_saved || !Number.isFinite(amount) || amount <= 0 || amount > Number(calculation.balance || 0);
+}
+
+async function refreshCalculation() {
+  const requestId = ++calculationRequest;
+  if (!$('#staff').value || !monthDate() || $('#basePay').value === '') {
+    showCalculation(null); $('#saveCalculation').disabled = true; $('#recordPayment').disabled = true; return null;
+  }
+  $('#saveCalculation').disabled = true; $('#recordPayment').disabled = true;
+  formMsg.textContent = 'Calculating pay…';
+  const { data, error } = await supabase.rpc('admin_calculate_staff_payroll', calculationArgs());
+  if (requestId !== calculationRequest) return null;
+  if (error) { calculation = null; calculationBox.hidden = true; formMsg.textContent = error.message; return null; }
+  if (data.period_saved) {
+    $('#basePay').value = Number(data.base_pay).toFixed(2);
+    $('#additions').value = Number(data.additions).toFixed(2);
+    $('#deductions').value = Number(data.deductions).toFixed(2);
+  }
+  showCalculation(data);
+  formMsg.textContent = data.period_saved ? 'Loaded the saved calculation for this staff member and month.' : 'Calculation preview updated from the entered pay amounts.';
+  return data;
+}
+
+function scheduleCalculation() {
+  for (const selector of calcFields) $(selector).disabled = false;
+  calculation = null; $('#saveCalculation').disabled = true; $('#recordPayment').disabled = true;
+  window.clearTimeout(calculationTimer);
+  calculationTimer = window.setTimeout(refreshCalculation, 250);
+}
+
+function renderHistory(data) {
+  const records = data?.rows || [];
+  historyCount = Number(data?.payment_count || 0);
+  const currencyTotals = data?.totals_by_currency || [];
+  const totalLabel = currencyTotals.length === 1
+    ? money(currencyTotals[0].amount, currencyTotals[0].currency)
+    : currencyTotals.length ? currencyTotals.map((item) => money(item.amount,item.currency)).join(' · ') : money(0);
+  $('#payrollSummary').innerHTML = `<article><span>Total paid in filtered results</span><strong>${escapeHtml(totalLabel)}</strong></article><article><span>Payment entries</span><strong>${historyCount}</strong></article><article><span>Staff paid</span><strong>${Number(data?.staff_count || 0)}</strong></article>`;
+  rows.innerHTML = records.map((item) => {
+    const periodPaid = Number(item.period_paid || 0), balance = Math.max(0, Number(item.net_pay || 0) - periodPaid);
+    return `<tr><td>${escapeHtml(item.payroll_number)}</td><td>${escapeHtml(item.staff_name)}</td><td>${escapeHtml(item.pay_month.slice(0,7))}</td><td>${escapeHtml(money(item.gross_pay,item.currency_code))}</td><td>${escapeHtml(money(item.deductions,item.currency_code))}</td><td>${escapeHtml(money(item.net_pay,item.currency_code))}</td><td>${escapeHtml(money(item.amount,item.currency_code))}</td><td>${escapeHtml(money(periodPaid,item.currency_code))}</td><td>${escapeHtml(money(balance,item.currency_code))}</td><td>${escapeHtml(item.payment_method)}</td><td>${escapeHtml(item.paid_by_name)}</td><td>${escapeHtml(new Date(item.paid_at).toLocaleString())}</td><td><button class="btn secondary" data-print="${escapeHtml(item.id)}" type="button">Print</button></td></tr>`;
+  }).join('') || '<tr><td colspan="13" class="muted">No payroll matches these filters.</td></tr>';
+  const first = historyCount ? historyPage * historyPageSize + 1 : 0;
+  $('#historyPageInfo').textContent = `${first}–${Math.min((historyPage + 1) * historyPageSize,historyCount)} of ${historyCount}`;
+  $('#previousPage').disabled = historyPage === 0;
+  $('#nextPage').disabled = (historyPage + 1) * historyPageSize >= historyCount;
+  listMsg.textContent = 'Totals use recorded installments. Remaining balance is calculated against the saved net pay for each period.';
+  rows.querySelectorAll('[data-print]').forEach((button) => button.addEventListener('click', async () => {
+    const payment = records.find((item) => item.id === button.dataset.print);
+    if (payment) await printPayroll(payment, payment);
+  }));
 }
 
 async function loadHistory() {
   listMsg.textContent = 'Loading payroll records…';
-  const { data, error } = await supabase.from('payroll_payments').select('*').order('pay_month', { ascending: false }).order('paid_at', { ascending: false }).limit(300);
+  const month = $('#historyMonth').value;
+  const { data, error } = await supabase.rpc('admin_payroll_history', {
+    p_month: month ? `${month}-01` : null,
+    p_staff_id: $('#historyStaff').value || null,
+    p_search: $('#historySearch').value.trim() || null,
+    p_limit: historyPageSize,
+    p_offset: historyPage * historyPageSize,
+  });
   if (error) { rows.replaceChildren(); listMsg.textContent = `Payroll could not be loaded: ${error.message}`; return; }
-  payrollRecords = data || [];
-  renderHistory();
+  renderHistory(data);
 }
 
-function renderHistory() {
-  const month = $('#historyMonth').value;
-  const staffId = $('#historyStaff').value;
-  const query = $('#historySearch').value.trim().toLowerCase();
-  const filtered = payrollRecords.filter((item) => (!month || item.pay_month.startsWith(month)) && (!staffId || item.staff_id === staffId) && (!query || `${item.payroll_number} ${item.staff_name} ${item.payment_reference || ''} ${item.notes || ''}`.toLowerCase().includes(query)));
-  const currencies = new Set(filtered.map((item) => item.currency_code || 'KES'));
-  const total = filtered.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const totalLabel = currencies.size <= 1 ? money(total, [...currencies][0] || 'KES') : `${filtered.length} payments across ${currencies.size} currencies`;
-  $('#payrollSummary').innerHTML = `<article><span>Total paid</span><strong>${escapeHtml(totalLabel)}</strong></article><article><span>Payments</span><strong>${filtered.length}</strong></article><article><span>Staff paid</span><strong>${new Set(filtered.map((item) => item.staff_id)).size}</strong></article>`;
-  listMsg.textContent = `${filtered.length} of ${payrollRecords.length} loaded payroll record${payrollRecords.length === 1 ? '' : 's'}. The history is limited to the latest 300 records.`;
-  rows.innerHTML = filtered.map((item) => `<tr><td>${escapeHtml(item.payroll_number)}</td><td>${escapeHtml(item.staff_name)}</td><td>${escapeHtml(item.pay_month.slice(0,7))}</td><td>${escapeHtml(money(item.amount,item.currency_code))}</td><td>${escapeHtml(item.payment_method)}</td><td>${escapeHtml(item.paid_by_name)}</td><td>${escapeHtml(new Date(item.paid_at).toLocaleString())}</td><td><button class="btn secondary" data-print="${escapeHtml(item.id)}" type="button">Print</button></td></tr>`).join('') || '<tr><td colspan="8" class="muted">No payroll matches these filters.</td></tr>';
-  rows.querySelectorAll('[data-print]').forEach((button) => button.addEventListener('click', async () => {
-    const payment = filtered.find((item) => item.id === button.dataset.print);
-    if (payment) await printPayroll(payment);
-  }));
+async function printPayroll(payment, period = payment, popup = window.open('', '_blank', 'width=460,height=720')) {
+  if (!popup) { formMsg.textContent = 'Allow pop-ups to print the payroll receipt.'; return; }
+  const { data, error } = await supabase.storage.from('receipt-signatures').createSignedUrl(payment.signature_path, 300);
+  if (error || !data?.signedUrl) { popup.close(); formMsg.textContent = 'The saved admin signature could not be loaded.'; return; }
+  const currency = payment.currency_code || period.currency_code || 'KES';
+  const paidToDate = Number(period.period_paid ?? period.paid ?? payment.amount);
+  const balance = Math.max(0, Number(period.net_pay ?? payment.amount) - paidToDate);
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(payment.payroll_number)}</title><style>body{font:14px Arial;max-width:380px;margin:24px auto;color:#111}h1{text-align:center;font-size:20px}.muted{text-align:center;color:#555}.line{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid #ddd}.signature{text-align:center;margin-top:28px}.signature img{display:block;max-width:190px;max-height:75px;object-fit:contain;margin:0 auto 5px}</style></head><body><h1>Payroll payment receipt</h1><p class="muted">${escapeHtml(payment.payroll_number)}</p><div class="line"><span>Staff member</span><b>${escapeHtml(payment.staff_name)}</b></div><div class="line"><span>Pay month</span><b>${escapeHtml(payment.pay_month.slice(0,7))}</b></div><div class="line"><span>Gross pay</span><b>${escapeHtml(money(period.gross_pay,currency))}</b></div><div class="line"><span>Deductions</span><b>${escapeHtml(money(period.deductions,currency))}</b></div><div class="line"><span>Net pay</span><b>${escapeHtml(money(period.net_pay,currency))}</b></div><div class="line"><span>This payment</span><b>${escapeHtml(money(payment.amount,currency))}</b></div><div class="line"><span>Total paid to date</span><b>${escapeHtml(money(paidToDate,currency))}</b></div><div class="line"><span>Remaining balance</span><b>${escapeHtml(money(balance,currency))}</b></div><div class="line"><span>Method</span><b>${escapeHtml(payment.payment_method)}</b></div>${payment.payment_reference?`<div class="line"><span>Reference</span><b>${escapeHtml(payment.payment_reference)}</b></div>`:''}<div class="line"><span>Paid by</span><b>${escapeHtml(payment.paid_by_name)}</b></div><div class="line"><span>Date</span><b>${escapeHtml(new Date(payment.paid_at).toLocaleString())}</b></div><div class="signature"><img src="${escapeHtml(data.signedUrl)}" alt="Authorized administrator signature"><div>Authorized by <b>${escapeHtml(payment.signature_name)}</b></div></div><script>addEventListener('load',()=>{const image=document.querySelector('img');image.decode().then(()=>print()).catch(()=>document.body.insertAdjacentText('beforeend','Signature failed to load; receipt not printed.'))},{once:true})</script></body></html>`;
+  popup.document.open(); popup.document.write(html); popup.document.close();
 }
 
 const [{ data: staff, error: staffError }, { data: settings, error: settingsError }] = await Promise.all([
@@ -53,35 +132,46 @@ else {
   $('#staff').innerHTML = '<option value="">Choose staff member</option>' + (staff || []).map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.full_name)}${person.active ? '' : ' (inactive)'}</option>`).join('');
   $('#historyStaff').innerHTML = '<option value="">All staff</option>' + (staff || []).map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.full_name)}${person.active ? '' : ' (inactive)'}</option>`).join('');
 }
-if (settingsError || !settings?.receipt_signature_path || !settings?.receipt_signature_name) {
-  formMsg.textContent = 'Save the admin receipt signature in Pharmacy Settings before recording payroll.';
-  $('#recordPayment').disabled = true;
-}
-$('#payMonth').value = new Date().toISOString().slice(0, 7);
-$('#method').addEventListener('change', () => { $('#reference').required = ['mpesa', 'bank'].includes($('#method').value); });
+signatureReady = !settingsError && Boolean(settings?.receipt_signature_path && settings?.receipt_signature_name);
+if (!signatureReady) formMsg.textContent = 'Save the admin receipt signature in Pharmacy Settings before recording payroll.';
+$('#payMonth').value = new Date().toISOString().slice(0,7);
+$('#method').addEventListener('change', () => { $('#reference').required = ['mpesa','bank'].includes($('#method').value); });
+for (const selector of ['#staff','#payMonth',...calcFields]) $(selector).addEventListener(selector === '#staff' ? 'change' : 'input', scheduleCalculation);
+$('#saveCalculation').addEventListener('click', async () => {
+  if (!calculation || calculation.period_saved) return;
+  const button = $('#saveCalculation'); button.disabled = true; formMsg.textContent = 'Saving pay calculation…';
+  const { data, error } = await supabase.rpc('admin_save_staff_payroll_period', calculationArgs());
+  if (error) { formMsg.textContent = error.message; button.disabled = false; return; }
+  showCalculation(data); formMsg.textContent = 'Pay calculation saved. You can now record one or more installments.';
+});
+amountInput.addEventListener('input', updatePaymentButton);
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const button = $('#recordPayment'); button.disabled = true; formMsg.textContent = 'Recording payment…';
+  if (!calculation?.period_saved) { formMsg.textContent = 'Save the pay calculation before recording a payment.'; return; }
+  const amount = Number(amountInput.value);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > Number(calculation.balance)) { formMsg.textContent = 'Enter a payment greater than zero and no higher than the remaining balance.'; return; }
+  const button = $('#recordPayment'); button.disabled = true; formMsg.textContent = 'Recording payroll installment…';
   const receiptWindow = window.open('', '_blank', 'width=460,height=720');
-  if (receiptWindow) { receiptWindow.document.write('<!doctype html><title>Preparing payroll receipt</title><p>Preparing signed payroll receipt…</p>'); }
+  if (receiptWindow) receiptWindow.document.write('<!doctype html><title>Preparing payroll receipt</title><p>Preparing signed payroll receipt…</p>');
   const month = $('#payMonth').value;
   const { data, error } = await supabase.rpc('admin_record_staff_payroll', {
-    p_staff_id: $('#staff').value,
-    p_pay_month: `${month}-01`,
-    p_amount: Number($('#amount').value),
-    p_payment_method: $('#method').value,
-    p_payment_reference: $('#reference').value.trim() || null,
-    p_notes: $('#notes').value.trim() || null,
+    ...calculationArgs(), p_amount_paid: amount, p_payment_method: $('#method').value,
+    p_payment_reference: $('#reference').value.trim() || null, p_notes: $('#notes').value.trim() || null,
   });
-  button.disabled = false;
-  if (error) { receiptWindow?.close(); formMsg.textContent = error.message.includes('payroll_payments_staff_id_pay_month_key') ? 'A payroll payment is already recorded for this staff member and month.' : error.message; return; }
-  formMsg.textContent = `Recorded ${data.payroll_number}. Preparing signed receipt…`;
-  await printPayroll(data, receiptWindow || undefined);
-  form.reset(); $('#payMonth').value = new Date().toISOString().slice(0, 7); $('#reference').required = false;
+  if (error) { receiptWindow?.close(); formMsg.textContent = error.message; updatePaymentButton(); return; }
+  const priorCalculation = calculation;
+  const period = await refreshCalculation();
+  formMsg.textContent = `Recorded ${data.payroll_number}.`;
+  const receiptPeriod = period || { ...priorCalculation, period_paid: Number(priorCalculation.paid || 0) + Number(data.amount), balance: Math.max(0, Number(priorCalculation.net_pay || 0) - Number(priorCalculation.paid || 0) - Number(data.amount)) };
+  await printPayroll(data, receiptPeriod, receiptWindow);
+  amountInput.value = ''; $('#reference').value = ''; $('#notes').value = ''; updatePaymentButton();
   await loadHistory();
 });
+
 $('#refresh').addEventListener('click', loadHistory);
-$('#historyMonth').addEventListener('input', renderHistory);
-$('#historyStaff').addEventListener('change', renderHistory);
-$('#historySearch').addEventListener('input', renderHistory);
+for (const selector of ['#historyMonth','#historyStaff']) $(selector).addEventListener('change', () => { historyPage = 0; loadHistory(); });
+let historySearchTimer;
+$('#historySearch').addEventListener('input', () => { historyPage = 0; window.clearTimeout(historySearchTimer); historySearchTimer = window.setTimeout(loadHistory,250); });
+$('#previousPage').addEventListener('click', () => { if (historyPage > 0) { historyPage--; loadHistory(); } });
+$('#nextPage').addEventListener('click', () => { if ((historyPage + 1) * historyPageSize < historyCount) { historyPage++; loadHistory(); } });
 loadHistory();

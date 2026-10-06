@@ -6,9 +6,9 @@ let medicines=[];
 let batches=[];
 let cart=[];
 let activeSaleId=null;
+const pendingClaimKey='pharmacy-pending-mpesa-claims';
+let awaitingApprovalSaleIds=(()=>{try{return JSON.parse(sessionStorage.getItem(pendingClaimKey)||'[]').filter(id=>typeof id==='string')}catch{return []}})();
 let outstanding=0;
-let lastCashTendered=0;
-let lastCashChange=0;
 let configuredPaybillNumber='';
 let configuredPaybillAccountNumber='';
 let receiptSignatureConfigured=false;
@@ -34,9 +34,24 @@ async function load(){
     supabase.from('pharmacy_settings').select('paybill_number,paybill_account_number,till_number,receipt_signature_path,receipt_signature_name').maybeSingle()
   ]);
   if(medicineError){message.textContent=medicineError.message;return}
-  medicines=medicineData||[];batches=batchData||[];if(!activeSaleId)cart=cart.map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return current?{...line,price:Number(current.selling_price)}:line});configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();receiptSignatureConfigured=Boolean(settings?.receipt_signature_path&&settings?.receipt_signature_name);$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';
+  medicines=medicineData||[];batches=batchData||[];if(!activeSaleId)cart=cart.map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return current?{...line,price:Number(current.selling_price)}:line});configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();receiptSignatureConfigured=Boolean(settings?.receipt_signature_path&&settings?.receipt_signature_name);$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';$('#tillReference').textContent=configuredPaybillAccountNumber||'Ask the admin to configure the PayBill account';
   prescription.innerHTML='<option value="">No prescription</option>'+(prescriptionData||[]).map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.prescription_number)} — ${escapeHtml(item.patient_name)}</option>`).join('');
-  const preset=new URLSearchParams(location.search).get('prescription');if(preset)prescription.value=preset;
+  const params=new URLSearchParams(location.search),preset=params.get('prescription');if(preset)prescription.value=preset;
+  const resumeId=params.get('resume');
+  if(resumeId&&!activeSaleId){
+    const [{data:pendingSale},{data:saleLines},{data:claimStatuses}]=await Promise.all([
+      supabase.from('sales').select('id,sale_number,total_amount,status,customer_name,customer_phone').eq('id',resumeId).maybeSingle(),
+      supabase.from('sale_items').select('medicine_id,quantity,batch_id,unit_price,medicines(name)').eq('sale_id',resumeId),
+      supabase.rpc('seller_manual_mpesa_claim_status',{p_sale_ids:[resumeId]})
+    ]);
+    if(pendingSale?.status==='pending_payment'&&!claimStatuses?.some(item=>item.claim_status==='pending')){
+      activeSaleId=pendingSale.id;outstanding=Number(pendingSale.total_amount);cart=(saleLines||[]).map(item=>({id:item.medicine_id,name:item.medicines?.name||'Medicine',price:Number(item.unit_price),quantity:Number(item.quantity),batch_id:item.batch_id}));
+      $('#customerName').value=pendingSale.customer_name||'';$('#customerPhone').value=pendingSale.customer_phone||'';$('#method').value='mpesa';$('#method').disabled=true;
+      $('#tillOrderNumber').textContent=pendingSale.sale_number;$('#tillAmount').textContent=money(pendingSale.total_amount);updatePaymentFields();
+      message.textContent=`Resumed ${pendingSale.sale_number}. Enter a new receipt code to retry payment.`;
+    }else if(pendingSale?.status==='pending_payment')message.textContent='This sale already has a code waiting for a statement match.';
+    history.replaceState({},'',location.pathname);
+  }
   renderMedicines();renderCart();
 }
 
@@ -73,8 +88,9 @@ function addMedicine(id){
 function renderMedicines(){
   const term=$('#search').value.trim().toLowerCase();
   const allMatches=medicines.filter(item=>`${item.name} ${item.generic_name||''} ${item.brand||''} ${item.barcode||''} ${item.strength||''}`.toLowerCase().includes(term));
-  const matches=allMatches.slice(0,80);
-  $('#medicineResultsMeta').textContent=allMatches.length>80?`Showing 80 of ${allMatches.length} matching medicines. Refine your search to find a specific item.`:`${allMatches.length} medicine${allMatches.length===1?'':'s'} found`;
+  const availableMatches=allMatches.filter(item=>medicineStock(item)>0);
+  const matches=availableMatches.slice(0,60);
+  $('#medicineResultsMeta').textContent=allMatches.length===0?'Search by name or scan a barcode.':availableMatches.length===0?'No matching medicines are currently in stock.':availableMatches.length>60?`Showing 60 of ${availableMatches.length} in-stock medicines. Refine your search to find a specific item.`:`${availableMatches.length} in-stock medicine${availableMatches.length===1?'':'s'} found`;
   list.innerHTML=matches.map(item=>{
     const stock=medicineStock(item),flags=[item.prescription_required?'Prescription required':'',item.controlled_medicine?'Controlled medicine':''].filter(Boolean).join(' · '),low=stock>0&&stock<=stockLimit(item);
     const nearExpiry=batches.some(batch=>batch.medicine_id===item.id&&daysToExpiry(batch.expiry_date)<=90);
@@ -130,15 +146,16 @@ $('#search').addEventListener('keydown',event=>{
 function updatePaymentFields(){
   const isMpesa=$('#method').value==='mpesa';
   $('#tillInstructions').hidden=!isMpesa;
+  $('#copyTillDetails').disabled=!activeSaleId;
   $('#mpesaTransactionCode').hidden=!isMpesa||!activeSaleId;$('#transactionCodeLabel').hidden=!isMpesa||!activeSaleId;
   $('#reference').hidden=isMpesa;$('#paymentAmount').hidden=false;$('#amountLabel').hidden=false;
-  $('#paymentAmount').readOnly=isMpesa&&!activeSaleId;
-  $('#amountLabel').textContent=isMpesa&&activeSaleId?'Amount received':'Sale amount';
+  $('#paymentAmount').readOnly=isMpesa;
+  $('#amountLabel').textContent=isMpesa&&activeSaleId?'Sale amount to verify':'Sale amount';
   if(!isMpesa)$('#amountLabel').textContent=$('#method').value==='cash'?'Cash tendered':'Payment amount';
   $('#paymentAmount').placeholder=$('#method').value==='cash'?'Enter cash received':'Enter amount received';
-  $('#manualPaymentHint').textContent=isMpesa?'Confirm the M-Pesa code and amount before entering them.':$('#method').value==='cash'?'Enter the cash received.':'Enter the amount received.';
-  $('#manualPaymentHint').hidden=isMpesa;
-  $('#checkout').textContent=isMpesa?(activeSaleId?'Verify M-PESA and complete sale':'Create pending sale'):activeSaleId?'Record payment':'Continue to payment';
+  $('#manualPaymentHint').textContent=isMpesa?'Enter the M-Pesa receipt code. The code is matched against imported PayBill data before the sale is completed.':$('#method').value==='cash'?'Enter the cash received.':'Enter the amount received.';
+  $('#manualPaymentHint').hidden=false;
+  $('#checkout').textContent=isMpesa?(activeSaleId?'Submit receipt code':'Create sale & PayBill details'):activeSaleId?'Record payment':'Continue to payment';
 }
 $('#method').addEventListener('change',updatePaymentFields);
 
@@ -146,30 +163,23 @@ async function showReceipt(saleId,saleNumber=saleId){
   const body=$('#receiptBody'),printButton=$('#printReceipt');
   const customerName=$('#customerName').value.trim(),customerPhone=$('#customerPhone').value.trim();
   printButton.disabled=true;
-  const [{data:sale,error},{data:saleItems,error:itemsError}]=await Promise.all([
+  const [{data:sale,error},{data:saleItems,error:itemsError},{data:payments,error:paymentError}]=await Promise.all([
     supabase.from('sales').select('created_at,total_amount,authorized_signature_path,authorized_signature_name,signature_applied_at').eq('id',saleId).single(),
     supabase.from('sale_items').select('quantity,unit_price,total,medicines(name,strength)').eq('sale_id',saleId),
+    supabase.from('payments').select('amount,method,cash_tendered,change_due').eq('sale_id',saleId).eq('status','paid'),
   ]);
-  if(error||itemsError||!sale?.authorized_signature_path||!sale.authorized_signature_name||!sale.signature_applied_at){body.innerHTML='<p>The signed receipt could not be prepared. Ask the Admin to check the receipt signature settings.</p>';$('#receiptPreview').hidden=false;return}
+  if(error||itemsError||paymentError||!sale?.authorized_signature_path||!sale.authorized_signature_name||!sale.signature_applied_at){body.innerHTML='<p>The signed receipt could not be prepared. Ask the Admin to check the receipt signature settings.</p>';$('#receiptPreview').hidden=false;return}
   const {data:signature,error:signatureError}=await supabase.storage.from('receipt-signatures').createSignedUrl(sale.authorized_signature_path,300);
   if(signatureError||!signature?.signedUrl){body.innerHTML='<p>The receipt signature is unavailable. Ask the Admin to check private signature storage.</p>';$('#receiptPreview').hidden=false;return}
   const verifyUrl=`${location.origin}/verify/?receipt=${encodeURIComponent(saleNumber)}`;
   const itemCount=(saleItems||[]).reduce((sum,item)=>sum+Number(item.quantity||0),0),productCount=(saleItems||[]).length;
-  body.innerHTML=`<p><span>Receipt number</span><strong>${escapeHtml(saleNumber)}</strong></p>${customerName?`<p><span>Buyer</span><strong>${escapeHtml(customerName)}</strong></p>`:''}${customerPhone?`<p><span>Buyer phone</span><strong>${escapeHtml(customerPhone)}</strong></p>`:''}<p><span>Completed</span><strong>${escapeHtml(new Date(sale.created_at).toLocaleString())}</strong></p>${(saleItems||[]).map(item=>`<p><span>${escapeHtml(item.medicines?.name||'Medicine')} ${escapeHtml(item.medicines?.strength||'')}<br>${money(item.unit_price)} × ${Number(item.quantity||0)}</span><strong>${money(item.total)}</strong></p>`).join('')}<p><span>Total drugs</span><strong>${itemCount} unit${itemCount===1?'':'s'} across ${productCount} medicine${productCount===1?'':'s'}</strong></p><p class="receipt-grand-total"><span>Total paid</span><strong>${money(sale.total_amount)}</strong></p>${lastCashTendered>0?`<p><span>Cash received</span><strong>${money(lastCashTendered)}</strong></p><p><span>Change</span><strong>${money(lastCashChange)}</strong></p>`:''}<div class="receipt-admin-signature"><img src="${escapeHtml(signature.signedUrl)}" alt="Authorized administrator signature"><div>Authorized by <strong>${escapeHtml(sale.authorized_signature_name)}</strong></div><small>Verify this receipt: <a href="${escapeHtml(verifyUrl)}">${escapeHtml(verifyUrl)}</a></small></div>`;
+  const paymentMethods=[...new Set((payments||[]).map(payment=>payment.method))].join(', '),cashTendered=(payments||[]).reduce((sum,payment)=>sum+Math.round(Number(payment.cash_tendered||0)*100),0)/100,cashChange=(payments||[]).reduce((sum,payment)=>sum+Math.round(Number(payment.change_due||0)*100),0)/100;
+  body.innerHTML=`<p><span>Receipt number</span><strong>${escapeHtml(saleNumber)}</strong></p>${customerName?`<p><span>Buyer</span><strong>${escapeHtml(customerName)}</strong></p>`:''}${customerPhone?`<p><span>Buyer phone</span><strong>${escapeHtml(customerPhone)}</strong></p>`:''}<p><span>Completed</span><strong>${escapeHtml(new Date(sale.created_at).toLocaleString())}</strong></p>${(saleItems||[]).map(item=>`<p><span>${escapeHtml(item.medicines?.name||'Medicine')} ${escapeHtml(item.medicines?.strength||'')}<br>${money(item.unit_price)} × ${Number(item.quantity||0)}</span><strong>${money(item.total)}</strong></p>`).join('')}<p><span>Total drugs</span><strong>${itemCount} unit${itemCount===1?'':'s'} across ${productCount} medicine${productCount===1?'':'s'}</strong></p><p><span>Payment</span><strong>${escapeHtml(paymentMethods||'—')}</strong></p><p class="receipt-grand-total"><span>Total paid</span><strong>${money(sale.total_amount)}</strong></p>${cashTendered?`<p><span>Cash received</span><strong>${money(cashTendered)}</strong></p><p><span>Change</span><strong>${money(cashChange)}</strong></p>`:''}<div class="receipt-admin-signature"><img src="${escapeHtml(signature.signedUrl)}" alt="Authorized administrator signature"><div>Authorized by <strong>${escapeHtml(sale.authorized_signature_name)}</strong></div><small>Verify this receipt: <a href="${escapeHtml(verifyUrl)}">${escapeHtml(verifyUrl)}</a></small></div>`;
   printButton.disabled=false;
   $('#receiptPreview').hidden=false;
   $('#receiptPreview').scrollIntoView({behavior:'smooth',block:'nearest'});
-  lastCashTendered=0;lastCashChange=0;
 }
 async function loadReceiptReference(saleId){const {data}=await supabase.from('sales').select('sale_number,total_amount,status,created_at').eq('id',saleId).single();return data?.status==='paid'?data:null}
-async function completeMpesaSale(saleId){
-  const saleNumber=(await loadReceiptReference(saleId))?.sale_number;
-  if(activeSaleId!==saleId||!saleNumber)return;
-  activeSaleId=null;
-  await showReceipt(saleId,saleNumber);
-  outstanding=0;cart=[];prescription.value='';$('#customerName').value='';$('#customerPhone').value='';$('#mpesaTransactionCode').value='';$('#reference').value='';renderCart();updatePaymentFields();await load();
-  message.textContent='Payment verified. Stock update completed by the server.';
-}
 $('#printReceipt').addEventListener('click',async()=>{const signature=$('#receiptBody img[alt="Authorized administrator signature"]');if(signature){try{await signature.decode()}catch{message.textContent='The admin signature did not load. The receipt was not printed.';return}}window.print()});
 
 $('#checkout').addEventListener('click',async()=>{
@@ -177,10 +187,9 @@ $('#checkout').addEventListener('click',async()=>{
   if(!receiptSignatureConfigured){message.textContent='Ask the Admin to save the receipt signature in Pharmacy Settings before completing sales.';return}
   const method=$('#method').value;
   const amount=Number($('#paymentAmount').value);
-  const transactionCode=$('#mpesaTransactionCode').value.trim().toUpperCase();
   let saleJustCreated=false;
-  if(method==='mpesa'&&(!configuredPaybillNumber||!configuredPaybillAccountNumber)){message.textContent='Ask the admin to configure the pharmacy PayBill number and account number first.';return}
-  if(method==='mpesa'&&activeSaleId&&(!transactionCode||!Number.isFinite(amount)||amount<=0)){message.textContent='Enter the M-PESA transaction code and amount received.';return}
+  if(method==='mpesa'&&(!configuredPaybillNumber||!configuredPaybillAccountNumber)){message.textContent='Ask the admin to configure the pharmacy PayBill and account numbers first.';return}
+  if(method==='mpesa'&&!Number.isInteger(amount)){message.textContent='M-Pesa PayBill requires a whole-shilling total. Use Cash or another method for this sale.';return}
   if(method!=='mpesa'&&(!Number.isFinite(amount)||amount<=0)){ $('#paymentAmount').focus();message.textContent='Enter a valid payment amount.';return}
   if(!activeSaleId){
     if(!cart.length){message.textContent='Cart is empty.';return}
@@ -205,38 +214,46 @@ $('#checkout').addEventListener('click',async()=>{
     $('#tillOrderNumber').textContent=sale.sale_number;
     $('#tillAmount').textContent=money(sale.total_amount);
     if(saleJustCreated){
+      $('#method').disabled=true;
       button.disabled=false;updatePaymentFields();
-      message.textContent=`Sale ${sale.sale_number} is pending. Ask the customer to pay ${money(sale.total_amount)}, then enter the receipt code and amount to verify.`;
+      message.textContent=`Sale ${sale.sale_number} is ready. Confirm the customer paid ${money(sale.total_amount)} to PayBill ${configuredPaybillNumber}, account ${configuredPaybillAccountNumber}. Then enter the receipt code. The sale completes automatically when it matches imported PayBill data.`;
       return;
     }
-    const {data:remaining,error}=await supabase.rpc('verify_manual_mpesa_payment',{p_sale_id:activeSaleId,p_amount:amount,p_transaction_code:transactionCode});
+    const transactionCode=$('#mpesaTransactionCode').value.trim().toUpperCase();
+    if(!transactionCode){button.disabled=false;$('#mpesaTransactionCode').focus();message.textContent='Enter the receipt code from the customer M-Pesa confirmation message.';return}
+    const {data:claimId,error:claimError}=await supabase.rpc('submit_manual_mpesa_claim',{p_sale_id:activeSaleId,p_amount:outstanding,p_transaction_code:transactionCode});
     button.disabled=false;
-    if(error){message.textContent=error.message;return}
-    outstanding=Number(remaining||0);
-    const completedSaleId=activeSaleId;
-    await completeMpesaSale(completedSaleId);
+    if(claimError){message.textContent=claimError.message;return}
+    const submittedSaleId=activeSaleId;
+    const {data:claimStatus}=await supabase.rpc('seller_manual_mpesa_claim_status',{p_sale_ids:[submittedSaleId]});
+    if(!claimStatus?.some(item=>item.claim_status==='approved'||item.claim_status==='rejected'))awaitingApprovalSaleIds=[...new Set([...awaitingApprovalSaleIds,submittedSaleId])];
+    else awaitingApprovalSaleIds=awaitingApprovalSaleIds.filter(id=>id!==submittedSaleId);
+    try{sessionStorage.setItem(pendingClaimKey,JSON.stringify(awaitingApprovalSaleIds))}catch{}
+    activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#mpesaTransactionCode').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;
+    renderCart();updatePaymentFields();await load();
+    const finalStatus=claimStatus?.find(item=>item.sale_id===submittedSaleId)?.claim_status;
+    message.textContent=finalStatus==='approved'?`Statement match confirmed for ${sale.sale_number}. Sale completed; the receipt is available in My Receipts.`:finalStatus==='rejected'?`The imported statement amount did not match ${sale.sale_number}. No receipt was issued and stock was not deducted.`:`M-Pesa code queued (claim ${String(claimId).slice(0,8)}). The sale stays pending until it matches an imported PayBill statement or an Admin reviews it.`;
     return;
   }
   const normalizedAmount=fromCents(toCents(amount));
   const amountToRecord=method==='cash'?fromCents(Math.min(toCents(normalizedAmount),toCents(outstanding))):normalizedAmount;
   const changeDue=method==='cash'?fromCents(Math.max(0,toCents(normalizedAmount)-toCents(amountToRecord))):0;
-  const {data:remaining,error}=await supabase.rpc('add_manual_sale_payment',{p_sale_id:activeSaleId,p_method:method,p_amount:amountToRecord,p_reference:$('#reference').value.trim()||null});
+  const {data:remaining,error}=await supabase.rpc('add_manual_sale_payment',{p_sale_id:activeSaleId,p_method:method,p_amount:amountToRecord,p_reference:$('#reference').value.trim()||null,p_cash_tendered:method==='cash'?normalizedAmount:null});
   button.disabled=false;
   if(error){message.textContent=error.message;return}
   outstanding=Number(remaining||0);
   if(outstanding>0){message.textContent=`Payment recorded. Remaining ${money(outstanding)}.`;renderCart();updatePaymentFields();return}
-  if(method==='cash'){lastCashTendered=normalizedAmount;lastCashChange=changeDue}
   const completedSaleId=activeSaleId;
   message.textContent=method==='cash'&&changeDue>0?`Sale fully paid. Return ${money(changeDue)} change. Stock update confirmed by the server.`:'Sale fully paid. Stock update confirmed by the server.';
   const confirmedSale=await loadReceiptReference(completedSaleId);
   await showReceipt(completedSaleId,confirmedSale?.sale_number||completedSaleId);
-  activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#customerName').value='';$('#customerPhone').value='';$('#mpesaTransactionCode').value='';
+  activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;
   renderCart();updatePaymentFields();await load();
 });
 
 $('#copyTillDetails').addEventListener('click',async()=>{
-  const details=`PayBill: ${configuredPaybillNumber}\nAmount: ${$('#tillAmount').textContent}\nAccount number: ${$('#tillReference').textContent}`;
-  try{await navigator.clipboard.writeText(details);message.textContent='PayBill number, amount and fixed account number copied.'}
+  const details=`PayBill: ${configuredPaybillNumber}\nAmount: ${$('#tillAmount').textContent}\nAccount number: ${$('#tillReference').textContent}\nSale number: ${$('#tillOrderNumber').textContent}`;
+  try{await navigator.clipboard.writeText(details);message.textContent='PayBill, amount, account number and sale number copied.'}
   catch{message.textContent='Copy is unavailable in this browser. Read the payment details to the customer.'}
 });
 
@@ -265,4 +282,21 @@ updatePaymentFields();
 if(matchMedia('(min-width: 901px)').matches)$('#search').focus({preventScroll:true});
 load();
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshCatalog()});
-window.setInterval(refreshCatalog,30000);
+window.setInterval(refreshCatalog,5000);
+let checkingClaimStatus=false;
+window.setInterval(async()=>{
+  if(checkingClaimStatus||!awaitingApprovalSaleIds.length||document.visibilityState!=='visible')return;
+  checkingClaimStatus=true;
+  try{
+    const {data,error}=await supabase.rpc('seller_manual_mpesa_claim_status',{p_sale_ids:awaitingApprovalSaleIds});
+    if(error||!data?.length)return;
+    const completed=data.filter(item=>item.claim_status==='approved'),rejected=data.filter(item=>item.claim_status==='rejected');
+    if(!completed.length&&!rejected.length)return;
+    const resolved=new Set([...completed,...rejected].map(item=>item.sale_id));
+    awaitingApprovalSaleIds=awaitingApprovalSaleIds.filter(id=>!resolved.has(id));
+    try{sessionStorage.setItem(pendingClaimKey,JSON.stringify(awaitingApprovalSaleIds))}catch{}
+    if(completed.length)message.textContent=`PayBill statement matched payment for ${completed.map(item=>item.sale_number).join(', ')}. Stock is updated and the receipt is in My Receipts.`;
+    else message.textContent=`Admin rejected the M-Pesa code for ${rejected.map(item=>item.sale_number).join(', ')}. Check the customer's payment message and contact Admin.`;
+    await refreshCatalog();
+  }finally{checkingClaimStatus=false}
+},4000);
