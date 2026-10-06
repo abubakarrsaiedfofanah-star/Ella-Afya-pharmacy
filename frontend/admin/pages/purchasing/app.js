@@ -12,9 +12,8 @@ let medicines = [];
 async function init() {
   const { data, error } = await supabase.from('admin_medicine_purchase_catalog')
     .select('id,name,purchase_price').eq('active', true).order('name');
-  if (error) { $('#msg').textContent = `Purchase prices could not be loaded: ${error.message}`; return; }
-  medicines = data || [];
-  addRow();
+  if (error) $('#msg').textContent = `Purchase prices could not be loaded: ${error.message}`;
+  else { medicines = data || []; addRow(); }
   await loadBalances();
 }
 

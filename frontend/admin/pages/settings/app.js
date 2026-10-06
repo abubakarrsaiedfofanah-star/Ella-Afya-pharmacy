@@ -6,19 +6,52 @@ const form = document.querySelector('#form');
 const message = document.querySelector('#msg');
 const signatureMessage = document.querySelector('#signatureMsg');
 const signatureName = document.querySelector('#receiptSignatureName');
-const signatureFile = document.querySelector('#receiptSignatureFile');
 const signaturePreview = document.querySelector('#receiptSignaturePreview');
 const savedSignature = document.querySelector('#savedSignature');
 const uploadButton = document.querySelector('#uploadReceiptSignature');
+const signatureCanvas = document.querySelector('#signatureCanvas');
+const signatureContext = signatureCanvas.getContext('2d');
+let signatureDrawn = false;
 let savedSignaturePath = null;
 uploadButton.disabled = true;
+
+signatureContext.strokeStyle = '#123b34';
+signatureContext.lineWidth = 7;
+signatureContext.lineCap = 'round';
+signatureContext.lineJoin = 'round';
+function signaturePoint(event) {
+  const bounds = signatureCanvas.getBoundingClientRect();
+  return { x: (event.clientX - bounds.left) * signatureCanvas.width / bounds.width, y: (event.clientY - bounds.top) * signatureCanvas.height / bounds.height };
+}
+signatureCanvas.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  signatureCanvas.setPointerCapture(event.pointerId);
+  const point = signaturePoint(event);
+  signatureContext.beginPath();
+  signatureContext.fillStyle = signatureContext.strokeStyle;
+  signatureContext.arc(point.x, point.y, 3.5, 0, Math.PI * 2);
+  signatureContext.fill();
+  signatureContext.beginPath();
+  signatureContext.moveTo(point.x, point.y);
+  signatureDrawn = true;
+});
+signatureCanvas.addEventListener('pointermove', (event) => {
+  if (!signatureCanvas.hasPointerCapture(event.pointerId)) return;
+  const point = signaturePoint(event);
+  signatureContext.lineTo(point.x, point.y);
+  signatureContext.stroke();
+});
+document.querySelector('#clearSignature').addEventListener('click', () => {
+  signatureContext.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+  signatureDrawn = false;
+});
 
 async function showSignature(path) {
   savedSignaturePath = path || null;
   if (!savedSignaturePath) {
     savedSignature.hidden = true;
     signaturePreview.removeAttribute('src');
-    signatureMessage.textContent = 'No admin receipt signature is saved. Sales cannot be completed until one is uploaded.';
+    signatureMessage.textContent = 'No admin receipt signature is saved.';
     return;
   }
   const { data, error } = await supabase.storage.from('receipt-signatures').createSignedUrl(savedSignaturePath, 300);
@@ -29,7 +62,7 @@ async function showSignature(path) {
   }
   signaturePreview.src = data.signedUrl;
   savedSignature.hidden = false;
-  signatureMessage.textContent = 'Admin receipt signature saved in private storage. Upload a new image to replace it.';
+  signatureMessage.textContent = 'Admin receipt signature saved.';
 }
 
 const { data, error } = await supabase.from('pharmacy_settings').select('*').single();
@@ -56,28 +89,27 @@ form.addEventListener('submit', async (event) => {
 });
 
 uploadButton.addEventListener('click', async () => {
-  const file = signatureFile.files?.[0];
   const signerName = String(signatureName.value || '').trim();
   if (!signerName) {
-    signatureMessage.textContent = 'Enter the authorized receipt signer name and save it with the signature.';
+    signatureMessage.textContent = 'Enter the authorized signer name.';
     signatureName.focus();
     return;
   }
-  if (!file) {
-    signatureMessage.textContent = 'Choose a PNG, JPG or WebP signature image first.';
+  if (!signatureDrawn) {
+    signatureMessage.textContent = 'Draw the signature before saving.';
     return;
   }
-  const extension = ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' })[file.type];
-  if (!extension || file.size > 1024 * 1024) {
-    signatureMessage.textContent = 'Use a PNG, JPG or WebP image no larger than 1 MB.';
+  const blob = await new Promise((resolve) => signatureCanvas.toBlob(resolve, 'image/png'));
+  if (!blob || blob.size > 1024 * 1024) {
+    signatureMessage.textContent = 'Signature image could not be saved.';
     return;
   }
 
   uploadButton.disabled = true;
-  signatureMessage.textContent = 'Saving signature to private storage…';
-  const path = `${session.user.id}/${crypto.randomUUID()}.${extension}`;
-  const { error: uploadError } = await supabase.storage.from('receipt-signatures').upload(path, file, {
-    contentType: file.type,
+  signatureMessage.textContent = 'Saving signature…';
+  const path = `${session.user.id}/${crypto.randomUUID()}.png`;
+  const { error: uploadError } = await supabase.storage.from('receipt-signatures').upload(path, blob, {
+    contentType: 'image/png',
     cacheControl: '31536000',
     upsert: false,
   });
@@ -100,7 +132,6 @@ uploadButton.addEventListener('click', async () => {
     return;
   }
 
-  signatureFile.value = '';
   await showSignature(path);
   uploadButton.disabled = false;
 });

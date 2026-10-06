@@ -18,11 +18,10 @@
       <header class="page-head"><div><small>BUSINESS CONFIGURATION</small><h1>Pharmacy Settings</h1><p class="muted">Update the pharmacy details shown on receipts and operational alerts.</p></div></header>
 
       <section class="card admin-signature-card" aria-labelledby="signatureHeading">
-        <div class="signature-intro"><span class="signature-icon" aria-hidden="true">✍</span><div><small>ADMIN ONLY · MFA PROTECTED</small><h2 id="signatureHeading">Admin digital signature</h2><p class="muted">Save the authorized signer’s name and signature image. New customer receipts will include this signature and a receipt verification link.</p></div></div>
+        <div class="signature-intro"><span class="signature-icon" aria-hidden="true">✍</span><div><small>ADMIN ONLY · MFA PROTECTED</small><h2 id="signatureHeading">Admin digital signature</h2><p class="muted">Draw the authorized signer’s signature below. New customer receipts will include it.</p></div></div>
         <div class="signature-setup">
           <label>Authorized signer name<input id="receiptSignatureName" maxlength="100" autocomplete="name" placeholder="Name shown on customer receipts" required></label>
-          <label>Signature image <span class="muted">PNG, JPG or WebP · maximum 1 MB</span><input id="receiptSignatureFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
-          <button class="btn" id="uploadReceiptSignature" type="button">Save admin signature</button>
+          <div class="draw-signature"><label for="signatureCanvas">Draw signature</label><canvas id="signatureCanvas" width="1000" height="260" aria-label="Draw your signature here"></canvas><div class="signature-actions"><button class="btn secondary" id="clearSignature" type="button">Clear signature</button><button class="btn" id="uploadReceiptSignature" type="button">Save admin signature</button></div></div>
         </div>
         <div class="saved-signature" id="savedSignature" hidden><img id="receiptSignaturePreview" alt="Saved authorized administrator signature"><span>Current saved signature</span></div>
         <p id="signatureMsg" class="form-message" role="status" aria-live="polite">Loading signature settings…</p>

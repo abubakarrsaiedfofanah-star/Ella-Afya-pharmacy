@@ -17,9 +17,14 @@ function validExpiryDate(value){
 }
 
 async function load(){
-  const {data,error}=await supabase.from('medicines').select('id,name,generic_name,brand,manufacturer,barcode,strength,dosage_form,selling_price,prescription_required,controlled_medicine,min_stock,reorder_level,inventory(quantity)').order('name');
+  const [{data,error},{data:purchasePrices, error:priceError}]=await Promise.all([
+    supabase.from('medicines').select('id,name,generic_name,brand,manufacturer,barcode,strength,dosage_form,selling_price,prescription_required,controlled_medicine,min_stock,reorder_level,inventory(quantity)').order('name'),
+    supabase.from('admin_medicine_purchase_catalog').select('id,purchase_price'),
+  ]);
   if(error){msg.textContent=error.message;return false}
-  medicines=data||[];render();return true;
+  if(priceError)msg.textContent=`Buying prices could not be loaded: ${priceError.message}`;
+  const costs=new Map((purchasePrices||[]).map(item=>[item.id,Number(item.purchase_price)]));
+  medicines=(data||[]).map(item=>({...item,purchase_price:costs.get(item.id)??null}));render();return true;
 }
 async function revealCatalogue(){
   search.value='';filter.value='all';
@@ -32,7 +37,7 @@ function render(){
   rows.innerHTML=medicines.filter(item=>`${item.name} ${item.generic_name||''} ${item.barcode||''}`.toLowerCase().includes(query)).filter(item=>{
     const quantity=item.inventory?.[0]?.quantity??0;
     return mode==='low'?quantity<=item.min_stock:mode==='out'?quantity===0:mode==='rx'?item.prescription_required:true;
-  }).map(item=>`<tr><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td>KSh ${Number(item.selling_price).toLocaleString()}</td><td>${item.inventory?.[0]?.quantity??0}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td></tr>`).join('')||'<tr><td colspan="8">No medicines found.</td></tr>';
+  }).map(item=>`<tr><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td>${item.purchase_price==null?'-':`KSh ${Number(item.purchase_price).toLocaleString()}`}</td><td>KSh ${Number(item.selling_price).toLocaleString()}</td><td>${item.inventory?.[0]?.quantity??0}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td></tr>`).join('')||'<tr><td colspan="9">No medicines found.</td></tr>';
 }
 form.onsubmit=async event=>{
   event.preventDefault();const values=Object.fromEntries(new FormData(form));
@@ -123,8 +128,7 @@ function validateCsv(text){
     const minStock=numberValue(record.min_stock,'min_stock',rowNumber,{integer:true});
     let quantity=numberValue(record.quantity,'quantity',rowNumber,{integer:true});
     const batchNumber=record.batch_number||null,expiryDate=record.expiry_date||null;
-    if(quantity>0&&(!batchNumber||!expiryDate)){quantity=0;warnings.push(`Opening stock for ${record.name} set to 0 because batch number and expiry date are missing.`)}
-    if(quantity>0&&!validExpiryDate(expiryDate))throw new Error(`Row ${rowNumber}: expiry date must be valid and not passed.`);
+    if(quantity>0&&expiryDate&&!validExpiryDate(expiryDate))throw new Error(`Row ${rowNumber}: expiry date must be valid and not passed.`);
     return {name:record.name,generic_name:record.generic_name||null,brand:record.brand||null,manufacturer:record.manufacturer||null,barcode,strength:record.strength||null,dosage_form:record.dosage_form||null,unit:record.unit||'unit',quantity,batch_number:batchNumber,expiry_date:expiryDate,purchase_price:numberValue(record.purchase_price,'purchase_price',rowNumber),selling_price:numberValue(record.selling_price,'selling_price',rowNumber),min_stock:minStock,reorder_level:numberValue(record.reorder_level,'reorder_level',rowNumber,{integer:true}),prescription_required:truthy(record.prescription_required,'prescription_required',rowNumber),controlled_medicine:truthy(record.controlled_medicine,'controlled_medicine',rowNumber)};
   }).filter(Boolean);
   if(!items.length)throw new Error('No medicine rows with a medicine name were found in this sheet.');
@@ -191,11 +195,11 @@ importButton.onclick=async()=>{
   const medicineRows=csvRows.map(({quantity,batch_number,expiry_date,...medicine})=>({...medicine,id:crypto.randomUUID()}));
   const {error}=await supabase.from('medicines').insert(medicineRows);
   if(error){csvMsg.textContent=`Import failed: ${error.message}`;importButton.disabled=false;return}
-  const zeroStockRows=medicineRows.filter((_,index)=>csvRows[index].quantity===0).map(item=>({medicine_id:item.id,quantity:0}));
-  const {error:zeroStockError}=zeroStockRows.length?await supabase.from('inventory').insert(zeroStockRows):{error:null};
+  const directInventoryRows=medicineRows.flatMap((item,index)=>csvRows[index].quantity===0||!csvRows[index].batch_number||!csvRows[index].expiry_date?[{medicine_id:item.id,quantity:csvRows[index].quantity}]:[]);
+  const {error:zeroStockError}=directInventoryRows.length?await supabase.from('inventory').insert(directInventoryRows):{error:null};
   let stockError=zeroStockError;
   if(!stockError){
-    const received=medicineRows.flatMap((item,index)=>csvRows[index].quantity>0?[{medicine_id:item.id,quantity:csvRows[index].quantity,unit_cost:csvRows[index].purchase_price,batch_number:csvRows[index].batch_number,expiry_date:csvRows[index].expiry_date}]:[]);
+    const received=medicineRows.flatMap((item,index)=>csvRows[index].quantity>0&&csvRows[index].batch_number&&csvRows[index].expiry_date?[{medicine_id:item.id,quantity:csvRows[index].quantity,unit_cost:csvRows[index].purchase_price,batch_number:csvRows[index].batch_number,expiry_date:csvRows[index].expiry_date}]:[]);
     if(received.length){const result=await supabase.rpc('receive_stock',{p_supplier_name:'Opening stock',p_invoice_number:'Initial catalogue import',p_items:received});stockError=result.error}
   }
   if(stockError){
@@ -206,8 +210,8 @@ importButton.onclick=async()=>{
     importButton.disabled=false;return;
   }
   csvRows=[];csvFile.value='';csvPreview.hidden=true;
-  const refreshed=await revealCatalogue();
-  csvMsg.textContent=refreshed?`Successfully added ${medicineRows.length} medicines. They now appear in the catalogue below.`:'Import completed, but the catalogue could not refresh. Reload this page to view the imported medicines.';
+  await revealCatalogue();
+  csvMsg.textContent='';
 };
 $('#downloadTemplate').onclick=()=>{
   const contents='name,generic_name,brand,manufacturer,barcode,strength,dosage_form,unit,quantity,batch_number,expiry_date,purchase_price,selling_price,min_stock,reorder_level,prescription_required,controlled_medicine\nParacetamol,Paracetamol,Example Brand,Example Manufacturer,1234567890123,500mg,Tablet,tablet,100,BATCH-001,2027-12-31,10,15,20,20,no,no\n';
