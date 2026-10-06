@@ -44,7 +44,7 @@ async function load(){
   loading=true;$('#refreshBtn').disabled=true;$('#msg').textContent='';
   try{
     const range=localDayRange();
-    $('#todayLabel').textContent=`Your shift, sales and payments for ${new Date(`${range.date}T12:00:00`).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}.`;
+    $('#todayLabel').textContent=`${new Date(`${range.date}T12:00:00`).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}.`;
     const [{data:shift,error:shiftError},{data:sales,error:salesError},{data:payments,error:paymentsError}]=await Promise.all([
       supabase.from('shift_sessions').select('status,opened_at').eq('seller_id',session.user.id).eq('status','open').order('opened_at',{ascending:false}).limit(1).maybeSingle(),
       readTodayRows('sales','id,sale_number,total_amount,status,created_at',range),

@@ -135,7 +135,7 @@ function updatePaymentFields(){
   $('#amountLabel').textContent=isMpesa&&activeSaleId?'Amount received':'Sale amount';
   if(!isMpesa)$('#amountLabel').textContent=$('#method').value==='cash'?'Cash tendered':'Payment amount';
   $('#paymentAmount').placeholder=$('#method').value==='cash'?'Enter cash received':'Enter amount received';
-  $('#manualPaymentHint').textContent=isMpesa?'Manual verification: compare the receipt code and exact amount with your M-Pesa message or statement. No payment API is connected.':$('#method').value==='cash'?'Enter the cash handed over. The app records only the amount due and shows any change.':'Record a manual payment; enter only the amount received.';
+  $('#manualPaymentHint').textContent=isMpesa?'Confirm the M-Pesa code and amount before entering them.':$('#method').value==='cash'?'Enter the cash received.':'Enter the amount received.';
   $('#manualPaymentHint').hidden=isMpesa;
   $('#checkout').textContent=isMpesa?(activeSaleId?'Verify M-PESA and complete sale':'Create pending sale'):activeSaleId?'Record payment':'Continue to payment';
 }
