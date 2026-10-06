@@ -90,7 +90,7 @@ search.oninput=render;filter.onchange=render;
 $('#clearCatalog').addEventListener('click',async()=>{
   const activeCount=medicines.filter(item=>item.active).length;
   if(!activeCount){catalogMsg.textContent='There are no active medicines to clear.';return}
-  if(!confirm(`Clear ${activeCount} active medicines from the catalogue? They will be hidden from Sales and their stock will be set to zero. Sales history is kept. If you import a cleared medicine again, it will be updated and shown in inventory and Sales.`))return;
+  if(!confirm(`Clear ${activeCount} active medicines? They will move to Inactive and stock will be set to zero. Sales history is kept. Reimported medicines appear as new active entries.`))return;
   const button=$('#clearCatalog');button.disabled=true;catalogMsg.textContent='Clearing catalogue…';
   const {data,error}=await supabase.rpc('admin_clear_medicine_catalog');
   button.disabled=false;
@@ -229,8 +229,9 @@ importButton.onclick=async()=>{
   const byBarcode=new Map(),byName=new Map();
   const nameKey=value=>String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   for(const existing of existingMedicines){
-    if(existing.barcode){const key=String(existing.barcode).trim().toLowerCase();if(!byBarcode.has(key)||(!byBarcode.get(key).active&&existing.active))byBarcode.set(key,existing)}
-    const key=nameKey(existing.name);if(key&&(!byName.has(key)||(!byName.get(key).active&&existing.active)))byName.set(key,existing);
+    if(!existing.active)continue;
+    if(existing.barcode)byBarcode.set(String(existing.barcode).trim().toLowerCase(),existing);
+    const key=nameKey(existing.name);if(key&&!byName.has(key))byName.set(key,existing);
   }
   const matched=new Set();
   const medicineRows=csvRows.map(({quantity,batch_number,expiry_date,...medicine})=>{
