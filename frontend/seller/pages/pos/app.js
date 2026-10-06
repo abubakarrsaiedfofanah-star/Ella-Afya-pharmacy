@@ -11,6 +11,7 @@ let lastCashTendered=0;
 let lastCashChange=0;
 let configuredPaybillNumber='';
 let configuredPaybillAccountNumber='';
+let receiptSignatureConfigured=false;
 const $=selector=>document.querySelector(selector);
 const list=$('#medicines');
 const cartElement=$('#cart');
@@ -29,10 +30,10 @@ async function load(){
     supabase.from('medicines').select('id,name,generic_name,brand,barcode,strength,selling_price,min_stock,prescription_required,controlled_medicine,inventory(quantity)').eq('active',true).order('name'),
     supabase.from('batches').select('id,medicine_id,batch_number,expiry_date,quantity').gte('expiry_date',new Date().toISOString().slice(0,10)).gt('quantity',0).order('expiry_date'),
     supabase.from('prescriptions').select('id,prescription_number,patient_name,status').in('status',['verified','dispensing','dispensed']).order('created_at',{ascending:false}).limit(30),
-    supabase.from('pharmacy_settings').select('paybill_number,paybill_account_number,till_number').maybeSingle()
+    supabase.from('pharmacy_settings').select('paybill_number,paybill_account_number,till_number,receipt_signature_path,receipt_signature_name').maybeSingle()
   ]);
   if(medicineError){message.textContent=medicineError.message;return}
-  medicines=medicineData||[];batches=batchData||[];if(!activeSaleId)cart=cart.map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return current?{...line,price:Number(current.selling_price)}:line});configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';
+  medicines=medicineData||[];batches=batchData||[];if(!activeSaleId)cart=cart.map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return current?{...line,price:Number(current.selling_price)}:line});configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();receiptSignatureConfigured=Boolean(settings?.receipt_signature_path&&settings?.receipt_signature_name);$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';
   prescription.innerHTML='<option value="">No prescription</option>'+(prescriptionData||[]).map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.prescription_number)} — ${escapeHtml(item.patient_name)}</option>`).join('');
   const preset=new URLSearchParams(location.search).get('prescription');if(preset)prescription.value=preset;
   renderMedicines();renderCart();
@@ -124,10 +125,17 @@ function updatePaymentFields(){
 }
 $('#method').addEventListener('change',updatePaymentFields);
 
-function showReceipt(saleId,saleNumber=saleId){
-  const body=$('#receiptBody');
+async function showReceipt(saleId,saleNumber=saleId){
+  const body=$('#receiptBody'),printButton=$('#printReceipt');
   const customerName=$('#customerName').value.trim(),customerPhone=$('#customerPhone').value.trim();
-  body.innerHTML=`<p><span>Receipt number</span><strong>${escapeHtml(saleNumber)}</strong></p>${customerName?`<p><span>Buyer</span><strong>${escapeHtml(customerName)}</strong></p>`:''}${customerPhone?`<p><span>Buyer phone</span><strong>${escapeHtml(customerPhone)}</strong></p>`:''}<p><span>Completed</span><strong>${new Date().toLocaleString()}</strong></p>${cart.map(item=>`<p><span>${escapeHtml(item.name)} × ${item.quantity}</span><strong>${money(item.price*item.quantity)}</strong></p>`).join('')}<p class="receipt-grand-total"><span>Total paid</span><strong>${money(cart.reduce((sum,item)=>sum+item.price*item.quantity,0))}</strong></p>${lastCashTendered>0?`<p><span>Cash received</span><strong>${money(lastCashTendered)}</strong></p><p><span>Change</span><strong>${money(lastCashChange)}</strong></p>`:''}<small>Official receipt details are available in Receipts.</small>`;
+  printButton.disabled=true;
+  const {data:sale,error}=await supabase.from('sales').select('created_at,authorized_signature_path,authorized_signature_name,signature_applied_at').eq('id',saleId).single();
+  if(error||!sale?.authorized_signature_path||!sale.authorized_signature_name||!sale.signature_applied_at){body.innerHTML='<p>The signed receipt could not be prepared. Ask the Admin to check the receipt signature settings.</p>';$('#receiptPreview').hidden=false;return}
+  const {data:signature,error:signatureError}=await supabase.storage.from('receipt-signatures').createSignedUrl(sale.authorized_signature_path,300);
+  if(signatureError||!signature?.signedUrl){body.innerHTML='<p>The receipt signature is unavailable. Ask the Admin to check private signature storage.</p>';$('#receiptPreview').hidden=false;return}
+  const verifyUrl=`${location.origin}/verify/?receipt=${encodeURIComponent(saleNumber)}`;
+  body.innerHTML=`<p><span>Receipt number</span><strong>${escapeHtml(saleNumber)}</strong></p>${customerName?`<p><span>Buyer</span><strong>${escapeHtml(customerName)}</strong></p>`:''}${customerPhone?`<p><span>Buyer phone</span><strong>${escapeHtml(customerPhone)}</strong></p>`:''}<p><span>Completed</span><strong>${escapeHtml(new Date(sale.created_at).toLocaleString())}</strong></p>${cart.map(item=>`<p><span>${escapeHtml(item.name)} x ${item.quantity}</span><strong>${money(item.price*item.quantity)}</strong></p>`).join('')}<p class="receipt-grand-total"><span>Total paid</span><strong>${money(cart.reduce((sum,item)=>sum+item.price*item.quantity,0))}</strong></p>${lastCashTendered>0?`<p><span>Cash received</span><strong>${money(lastCashTendered)}</strong></p><p><span>Change</span><strong>${money(lastCashChange)}</strong></p>`:''}<div class="receipt-admin-signature"><img src="${escapeHtml(signature.signedUrl)}" alt="Authorized administrator signature"><div>Authorized by <strong>${escapeHtml(sale.authorized_signature_name)}</strong></div><small>Verify this receipt: <a href="${escapeHtml(verifyUrl)}">${escapeHtml(verifyUrl)}</a></small></div>`;
+  printButton.disabled=false;
   $('#receiptPreview').hidden=false;
   $('#receiptPreview').scrollIntoView({behavior:'smooth',block:'nearest'});
   lastCashTendered=0;lastCashChange=0;
@@ -137,14 +145,15 @@ async function completeMpesaSale(saleId){
   const saleNumber=(await loadReceiptReference(saleId))?.sale_number;
   if(activeSaleId!==saleId||!saleNumber)return;
   activeSaleId=null;
-  showReceipt(saleId,saleNumber);
+  await showReceipt(saleId,saleNumber);
   outstanding=0;cart=[];prescription.value='';$('#customerName').value='';$('#customerPhone').value='';$('#mpesaTransactionCode').value='';$('#reference').value='';renderCart();updatePaymentFields();await load();
   message.textContent='Payment verified. Stock update completed by the server.';
 }
-$('#printReceipt').addEventListener('click',()=>window.print());
+$('#printReceipt').addEventListener('click',async()=>{const signature=$('#receiptBody img[alt="Authorized administrator signature"]');if(signature){try{await signature.decode()}catch{message.textContent='The admin signature did not load. The receipt was not printed.';return}}window.print()});
 
 $('#checkout').addEventListener('click',async()=>{
   const button=$('#checkout');if(button.disabled)return;
+  if(!receiptSignatureConfigured){message.textContent='Ask the Admin to save the receipt signature in Pharmacy Settings before completing sales.';return}
   const method=$('#method').value;
   const amount=Number($('#paymentAmount').value);
   const transactionCode=$('#mpesaTransactionCode').value.trim().toUpperCase();
@@ -195,7 +204,7 @@ $('#checkout').addEventListener('click',async()=>{
   const completedSaleId=activeSaleId;
   message.textContent=method==='cash'&&changeDue>0?`Sale fully paid. Return ${money(changeDue)} change. Stock update confirmed by the server.`:'Sale fully paid. Stock update confirmed by the server.';
   const confirmedSale=await loadReceiptReference(completedSaleId);
-  showReceipt(completedSaleId,confirmedSale?.sale_number||completedSaleId);
+  await showReceipt(completedSaleId,confirmedSale?.sale_number||completedSaleId);
   activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#customerName').value='';$('#customerPhone').value='';$('#mpesaTransactionCode').value='';
   renderCart();updatePaymentFields();await load();
 });

@@ -104,9 +104,7 @@ function validateCsv(text){
   });
   if(headers.some(header=>!header))throw new Error('Every CSV column must have a header.');
   if(new Set(headers).size!==headers.length)throw new Error('The CSV has duplicate columns after normalizing their names.');
-  const missing=['name','quantity','purchase_price','selling_price'].filter(required=>!headers.includes(required));
-  if(missing.includes('name'))throw new Error('Medicine name column not found. Use the header name or medicine_name, or download the CSV template for a sample file.');
-  if(missing.length)throw new Error(`Required medicine columns missing: ${missing.join(', ')}. Download the CSV template for the required headings.`);
+  if(!headers.includes('name'))throw new Error('Medicine name column not found. Use the header name or medicine_name, or download the CSV template for a sample file.');
   if(data.length>5001)throw new Error('Import up to 5,000 medicines at a time.');
   const seenBarcodes=new Set();
   return data.slice(1).map((cells,index)=>{
@@ -117,10 +115,10 @@ function validateCsv(text){
     const barcode=record.barcode||null;
     if(barcode){const key=barcode.toLowerCase();if(seenBarcodes.has(key))throw new Error(`Row ${rowNumber}: duplicate barcode ${barcode} in this file.`);seenBarcodes.add(key)}
     const minStock=numberValue(record.min_stock,'min_stock',rowNumber,{integer:true});
-    const quantity=numberValue(record.quantity,'quantity',rowNumber,{integer:true,required:true});
+    const quantity=numberValue(record.quantity,'quantity',rowNumber,{integer:true});
     const batchNumber=record.batch_number||null,expiryDate=record.expiry_date||null;
     if(quantity>0&&(!batchNumber||!expiryDate||!validExpiryDate(expiryDate)))throw new Error(`Row ${rowNumber}: quantity above 0 requires a batch_number and a valid, unexpired expiry_date.`);
-    return {name:record.name,generic_name:record.generic_name||null,brand:record.brand||null,manufacturer:record.manufacturer||null,barcode,strength:record.strength||null,dosage_form:record.dosage_form||null,unit:record.unit||'unit',quantity,batch_number:batchNumber,expiry_date:expiryDate,purchase_price:numberValue(record.purchase_price,'purchase_price',rowNumber,{required:true}),selling_price:numberValue(record.selling_price,'selling_price',rowNumber,{required:true}),min_stock:minStock,reorder_level:numberValue(record.reorder_level,'reorder_level',rowNumber,{integer:true}),prescription_required:truthy(record.prescription_required,'prescription_required',rowNumber),controlled_medicine:truthy(record.controlled_medicine,'controlled_medicine',rowNumber)};
+    return {name:record.name,generic_name:record.generic_name||null,brand:record.brand||null,manufacturer:record.manufacturer||null,barcode,strength:record.strength||null,dosage_form:record.dosage_form||null,unit:record.unit||'unit',quantity,batch_number:batchNumber,expiry_date:expiryDate,purchase_price:numberValue(record.purchase_price,'purchase_price',rowNumber),selling_price:numberValue(record.selling_price,'selling_price',rowNumber),min_stock:minStock,reorder_level:numberValue(record.reorder_level,'reorder_level',rowNumber,{integer:true}),prescription_required:truthy(record.prescription_required,'prescription_required',rowNumber),controlled_medicine:truthy(record.controlled_medicine,'controlled_medicine',rowNumber)};
   }).filter(Boolean);
 }
 function renderPreview(items){

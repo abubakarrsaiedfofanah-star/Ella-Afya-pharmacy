@@ -25,7 +25,7 @@
     ['Overview', [['HM', 'Dashboard', '/admin/']]],
     ['Stock & supply', [['IN', 'Inventory', '/admin/pages/inventory/'], ['RC', 'Receiving', '/admin/pages/receiving/'], ['PO', 'Purchasing', '/admin/pages/purchasing/'], ['SU', 'Suppliers', '/admin/pages/suppliers/'], ['AD', 'Adjustments', '/admin/pages/adjustments/']]],
     ['Sales & money', [['SL', 'Sales', '/admin/pages/sales/'], ['PY', 'Payments', '/admin/pages/payments/'], ['RX', 'Prescriptions', '/admin/pages/prescriptions/'], ['EX', 'Expenses', '/admin/pages/expenses/'], ['RP', 'Reports', '/admin/pages/reports/'], ['ED', 'Reconciliation', '/admin/pages/reconciliation/']]],
-    ['People & operations', [['ST', 'Staff', '/admin/pages/users/'], ['OK', 'Approvals', '/admin/pages/approvals/'], ['!', 'Alerts', '/admin/pages/alerts/'], ['AI', 'Intelligence', '/admin/pages/intelligence/'], ['OP', 'Operations', '/admin/pages/operations/']]],
+    ['People & operations', [['ST', 'Staff', '/admin/pages/users/'], ['PR', 'Payroll', '/admin/pages/payroll/'], ['OK', 'Approvals', '/admin/pages/approvals/'], ['!', 'Alerts', '/admin/pages/alerts/'], ['AI', 'Intelligence', '/admin/pages/intelligence/'], ['OP', 'Operations', '/admin/pages/operations/']]],
     ['Security & settings', [['SC', 'Security', '/admin/pages/security/'], ['DV', 'Sessions', '/admin/pages/sessions/'], ['SE', 'Settings', '/admin/pages/settings/']]],
     ['Account', [['->', 'Sign out', '#', true]]],
   ];

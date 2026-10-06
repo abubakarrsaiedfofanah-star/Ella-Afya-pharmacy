@@ -400,6 +400,7 @@ body.dark .skip-link{background:var(--surface);color:var(--ink)}
 #receiptBody p{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12px}
 #receiptBody p span{color:var(--muted)}
 #receiptBody .receipt-grand-total{font-size:14px;font-weight:850}
+.receipt-admin-signature{display:grid;justify-items:center;gap:6px;margin:18px 0 4px;padding-top:12px;border-top:1px solid var(--line);text-align:center;font-size:12px}.receipt-admin-signature img{display:block;width:auto;max-width:min(220px,100%);max-height:84px;object-fit:contain}.receipt-admin-signature small{max-width:100%;overflow-wrap:anywhere;color:var(--muted)}.receipt-admin-signature a{color:var(--brand)}
 .visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .medicine-skeleton{height:64px;margin:7px 0}
 .empty-results,.empty-cart{padding:15px 4px}

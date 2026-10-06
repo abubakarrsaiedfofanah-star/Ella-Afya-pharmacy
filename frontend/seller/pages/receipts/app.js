@@ -65,7 +65,7 @@ async function printReceipt(id) {
 
 	try {
 		const [{ data: sale, error }, { data: items }, { data: settings }] = await Promise.all([
-			supabase.from('sales').select('sale_number,total_amount,created_at,status,customer_name,customer_phone').eq('id', id).single(),
+			supabase.from('sales').select('sale_number,total_amount,created_at,status,customer_name,customer_phone,authorized_signature_path,authorized_signature_name,signature_applied_at').eq('id', id).single(),
 			supabase.from('sale_items').select('quantity,total,medicines(name,strength)').eq('sale_id', id),
 			supabase.from('pharmacy_settings').select('*').single(),
 		]);
@@ -75,10 +75,22 @@ async function printReceipt(id) {
 			message.textContent = 'The receipt could not be loaded.';
 			return;
 		}
+		if (!sale.authorized_signature_path || !sale.authorized_signature_name || !sale.signature_applied_at) {
+			printWindow.close();
+			message.textContent = 'This older receipt has no saved Admin signature. Ask the Admin before issuing a replacement.';
+			return;
+		}
+		const { data: signature, error: signatureError } = await supabase.storage.from('receipt-signatures').createSignedUrl(sale.authorized_signature_path, 300);
+		if (signatureError || !signature?.signedUrl) {
+			printWindow.close();
+			message.textContent = 'The receipt signature could not be loaded from protected storage.';
+			return;
+		}
 
 		const itemRows = (items || []).map((item) => `<div class="line"><span>${escapeHtml(item.medicines?.name || 'Medicine')} ${escapeHtml(item.medicines?.strength || '')} × ${Number(item.quantity || 0)}</span><b>${money(item.total)}</b></div>`).join('');
 		const buyer = [sale.customer_name, sale.customer_phone].filter(Boolean).map(escapeHtml).join(' · ');
-		const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(sale.sale_number)}</title><style>body{font:13px Arial;max-width:360px;margin:20px auto;color:#111}h2{text-align:center;margin:0 0 4px}.center{text-align:center;color:#555}.line{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed #bbb;padding:7px 0}.total{font-size:18px;font-weight:800;margin-top:10px}.foot{text-align:center;margin-top:18px;font-size:11px;color:#555}</style></head><body><h2>${escapeHtml(settings?.pharmacy_name || 'Pharmacy')}</h2><div class="center">${escapeHtml(settings?.address || '')}<br>${escapeHtml(settings?.phone || '')}</div><hr><div>Receipt: <b>${escapeHtml(sale.sale_number)}</b><br>${escapeHtml(new Date(sale.created_at).toLocaleString())}${buyer?`<br>Buyer: ${buyer}`:''}</div>${itemRows}<div class="line total"><span>TOTAL</span><span>${money(sale.total_amount)}</span></div><div class="foot">${escapeHtml(settings?.receipt_footer || 'Thank you for choosing our pharmacy.')}</div></body></html>`;
+		const verificationUrl = `${location.origin}/verify/?receipt=${encodeURIComponent(sale.sale_number)}`;
+		const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(sale.sale_number)}</title><style>body{font:13px Arial;max-width:360px;margin:20px auto;color:#111}h2{text-align:center;margin:0 0 4px}.center{text-align:center;color:#555}.line{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed #bbb;padding:7px 0}.total{font-size:18px;font-weight:800;margin-top:10px}.foot{text-align:center;margin-top:18px;font-size:11px;color:#555}.signature{margin:20px 0 8px;text-align:center;border-top:1px solid #bbb;padding-top:12px}.signature img{display:block;max-width:190px;max-height:76px;object-fit:contain;margin:0 auto 5px}.verify{font-size:10px;overflow-wrap:anywhere;text-align:center}</style></head><body><h2>${escapeHtml(settings?.pharmacy_name || 'Pharmacy')}</h2><div class="center">${escapeHtml(settings?.address || '')}<br>${escapeHtml(settings?.phone || '')}</div><hr><div>Receipt: <b>${escapeHtml(sale.sale_number)}</b><br>${escapeHtml(new Date(sale.created_at).toLocaleString())}${buyer?`<br>Buyer: ${buyer}`:''}</div>${itemRows}<div class="line total"><span>TOTAL</span><span>${money(sale.total_amount)}</span></div><div class="foot">${escapeHtml(settings?.receipt_footer || 'Thank you for choosing our pharmacy.')}</div><div class="signature"><img src="${escapeHtml(signature.signedUrl)}" alt="Authorized administrator signature"><div>Authorized by <b>${escapeHtml(sale.authorized_signature_name)}</b></div></div><div class="verify">Verify receipt: ${escapeHtml(verificationUrl)}</div></body></html>`;
 
 		printWindow.document.open();
 		printWindow.document.write(html);
