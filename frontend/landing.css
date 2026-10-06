@@ -211,3 +211,9 @@ img{max-width:100%}
   html{scroll-behavior:auto}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
+/* Clean photo presentation without clickable credit overlays */
+.photo-slide{overflow:hidden}
+.photo-slide:not(.photo-slide-portrait) img{object-position:center 42%}
+.photo-slide-portrait{min-height:0;padding:18px;display:grid;place-items:center;background:linear-gradient(145deg,#eaf4ef,#dcebe4)}
+.photo-slide-portrait img{width:min(100%,420px);height:auto;max-height:min(72vh,690px);aspect-ratio:auto;object-fit:contain;object-position:center;border-radius:15px;box-shadow:0 14px 42px #123d3218}
+@media(max-width:760px){.photo-slide-portrait{padding:12px}.photo-slide-portrait img{width:min(100%,390px);max-height:72vh}}

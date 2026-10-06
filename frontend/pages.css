@@ -57,3 +57,8 @@
   .page-links .button{min-height:48px}
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+/* Keep the medication portrait uncropped and free of overlay labels */
+.page-photo-more.portrait-photo{width:min(420px,calc(100% - 40px));margin:0 auto 64px;overflow:hidden;border:1px solid #d6e5dd;border-radius:22px;background:linear-gradient(145deg,#eaf4ef,#dcebe4);box-shadow:0 22px 58px #12423614}
+.page-photo-more.portrait-photo figure{border:0;border-radius:0;background:transparent;box-shadow:none}
+.page-photo-more.portrait-photo img{width:100%;height:auto;max-height:78vh;aspect-ratio:auto;object-fit:contain;object-position:center;border-radius:0}
+@media(max-width:760px){.page-photo-more.portrait-photo{width:min(390px,calc(100% - 40px));margin-bottom:50px}.page-photo-more.portrait-photo img{height:auto;max-height:76vh}}
