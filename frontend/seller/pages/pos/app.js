@@ -39,6 +39,22 @@ async function load(){
   renderMedicines();renderCart();
 }
 
+let catalogRefreshInProgress=false;
+async function refreshCatalog(){
+  if(catalogRefreshInProgress||document.visibilityState!=='visible')return;
+  catalogRefreshInProgress=true;
+  try{
+    const [{data:medicineData,error:medicineError},{data:batchData}]=await Promise.all([
+      supabase.from('medicines').select('id,name,generic_name,brand,barcode,strength,selling_price,min_stock,prescription_required,controlled_medicine,inventory(quantity)').eq('active',true).order('name'),
+      supabase.from('batches').select('id,medicine_id,batch_number,expiry_date,quantity').gte('expiry_date',new Date().toISOString().slice(0,10)).gt('quantity',0).order('expiry_date')
+    ]);
+    if(medicineError)return;
+    medicines=medicineData||[];batches=batchData||[];
+    if(!activeSaleId)cart=cart.filter(line=>medicines.some(medicine=>medicine.id===line.id)).map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return {...line,name:current.name,price:Number(current.selling_price)}});
+    renderMedicines();renderCart();
+  }finally{catalogRefreshInProgress=false}
+}
+
 function addMedicine(id){
   const medicine=medicines.find(item=>item.id===id);if(!medicine)return;
   if(medicineStock(medicine)<=0){message.textContent='This medicine is out of stock.';return}
@@ -243,3 +259,5 @@ $('#holds').addEventListener('click',async()=>{
 updatePaymentFields();
 if(matchMedia('(min-width: 901px)').matches)$('#search').focus({preventScroll:true});
 load();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshCatalog()});
+window.setInterval(refreshCatalog,30000);

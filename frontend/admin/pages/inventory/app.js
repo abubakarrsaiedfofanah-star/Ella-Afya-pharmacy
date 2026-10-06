@@ -89,7 +89,7 @@ search.oninput=render;filter.onchange=render;
 $('#clearCatalog').addEventListener('click',async()=>{
   const activeCount=medicines.filter(item=>item.active).length;
   if(!activeCount){catalogMsg.textContent='There are no active medicines to clear.';return}
-  if(!confirm(`Clear all ${activeCount} active medicines? They will be hidden from Sales and stock will be set to zero. Sales history will be kept.`))return;
+  if(!confirm(`Clear ${activeCount} active medicines from the catalogue? They will be hidden from Sales and their stock will be set to zero. Sales history is kept. If you import a cleared medicine again, it will be updated and shown in inventory and Sales.`))return;
   const button=$('#clearCatalog');button.disabled=true;catalogMsg.textContent='Clearing catalogue…';
   const {data,error}=await supabase.rpc('admin_clear_medicine_catalog');
   button.disabled=false;
@@ -218,32 +218,37 @@ csvFile.onchange=async()=>{
 importButton.onclick=async()=>{
   if(!csvRows.length)return;
   importButton.disabled=true;csvMsg.textContent='Importing medicines…';
-  const codes=csvRows.map(item=>item.barcode).filter(Boolean);
-  if(codes.length){
-    const existingCodes=new Set();
-    for(let start=0;start<codes.length;start+=200){
-      const {data:existing,error}=await supabase.from('medicines').select('barcode').in('barcode',codes.slice(start,start+200));
-      if(error){csvMsg.textContent=`Could not check existing barcodes: ${error.message}`;importButton.disabled=false;return}
-      for(const item of existing||[])existingCodes.add(String(item.barcode).toLowerCase());
-    }
-    const duplicates=csvRows.filter(item=>item.barcode&&existingCodes.has(item.barcode.toLowerCase()));
-    if(duplicates.length){csvMsg.textContent=`Import stopped: ${duplicates.length} barcode${duplicates.length===1?' is':'s are'} already in the catalogue (${duplicates.slice(0,5).map(item=>item.barcode).join(', ')}). Remove or change them in the CSV, then upload again.`;importButton.disabled=false;return}
+  const existingMedicines=[];
+  for(let start=0;;start+=1000){
+    const {data,error}=await supabase.from('medicines').select('id,name,barcode,active').range(start,start+999);
+    if(error){csvMsg.textContent=`Could not match medicines already in the catalogue: ${error.message}`;importButton.disabled=false;return}
+    existingMedicines.push(...(data||[]));
+    if(!data||data.length<1000)break;
   }
-  const medicineRows=csvRows.map(({quantity,batch_number,expiry_date,...medicine})=>({...medicine,id:crypto.randomUUID()}));
-  const {error}=await supabase.from('medicines').insert(medicineRows);
+  const byBarcode=new Map(),byName=new Map();
+  const nameKey=value=>String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  for(const existing of existingMedicines){
+    if(existing.barcode){const key=String(existing.barcode).trim().toLowerCase();if(!byBarcode.has(key)||(!byBarcode.get(key).active&&existing.active))byBarcode.set(key,existing)}
+    const key=nameKey(existing.name);if(key&&(!byName.has(key)||(!byName.get(key).active&&existing.active)))byName.set(key,existing);
+  }
+  const matched=new Set();
+  const medicineRows=csvRows.map(({quantity,batch_number,expiry_date,...medicine})=>{
+    let match=(medicine.barcode&&byBarcode.get(medicine.barcode.trim().toLowerCase()))||byName.get(nameKey(medicine.name));
+    if(match&&matched.has(match.id))match=null;
+    if(match)matched.add(match.id);
+    return {...medicine,id:match?.id||crypto.randomUUID(),active:true};
+  });
+  const {error}=await supabase.from('medicines').upsert(medicineRows,{onConflict:'id'});
   if(error){csvMsg.textContent=`Import failed: ${error.message}`;importButton.disabled=false;return}
   const directInventoryRows=medicineRows.flatMap((item,index)=>csvRows[index].quantity===0||!csvRows[index].batch_number||!csvRows[index].expiry_date?[{medicine_id:item.id,quantity:csvRows[index].quantity}]:[]);
-  const {error:zeroStockError}=directInventoryRows.length?await supabase.from('inventory').insert(directInventoryRows):{error:null};
+  const {error:zeroStockError}=directInventoryRows.length?await supabase.from('inventory').upsert(directInventoryRows,{onConflict:'medicine_id'}):{error:null};
   let stockError=zeroStockError;
   if(!stockError){
     const received=medicineRows.flatMap((item,index)=>csvRows[index].quantity>0&&csvRows[index].batch_number&&csvRows[index].expiry_date?[{medicine_id:item.id,quantity:csvRows[index].quantity,unit_cost:csvRows[index].purchase_price,batch_number:csvRows[index].batch_number,expiry_date:csvRows[index].expiry_date}]:[]);
     if(received.length){const result=await supabase.rpc('receive_stock',{p_supplier_name:'Opening stock',p_invoice_number:'Initial catalogue import',p_items:received});stockError=result.error}
   }
   if(stockError){
-    const medicineIds=medicineRows.map(item=>item.id);
-    const {error:inventoryCleanupError}=await supabase.from('inventory').delete().in('medicine_id',medicineIds);
-    const {error:cleanupError}=inventoryCleanupError?{error:inventoryCleanupError}:await supabase.from('medicines').delete().in('id',medicineIds);
-    csvMsg.textContent=cleanupError?`Inventory setup failed (${stockError.message}) and cleanup failed (${cleanupError.message}). Contact an administrator.`:`Import was rolled back because inventory setup failed: ${stockError.message}`;
+    csvMsg.textContent=`Medicine details were saved, but stock could not be updated: ${stockError.message}. Correct the stock information and import again.`;
     importButton.disabled=false;return;
   }
   csvRows=[];csvFile.value='';csvPreview.hidden=true;
