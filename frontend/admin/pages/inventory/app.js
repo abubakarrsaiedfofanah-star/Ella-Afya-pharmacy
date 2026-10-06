@@ -54,7 +54,7 @@ function render(){
       const purchasePrice=Number(buying.value),sellingPrice=Number(selling.value);
       if(buying.value===''||selling.value===''||!Number.isFinite(purchasePrice)||purchasePrice<0||!Number.isFinite(sellingPrice)||sellingPrice<0){catalogMsg.textContent='Enter valid non-negative buying and selling prices.';return}
       save.disabled=true;catalogMsg.textContent='Saving prices…';
-      const {error}=await supabase.from('medicines').update({purchase_price:purchasePrice,selling_price:sellingPrice}).eq('id',row.dataset.medicineRow);
+      const {error}=await supabase.rpc('admin_update_medicine_prices',{p_medicine_id:row.dataset.medicineRow,p_purchase_price:purchasePrice,p_selling_price:sellingPrice});
       if(error){catalogMsg.textContent=`Prices could not be saved: ${error.message}`;save.disabled=false;return}
       await load();catalogMsg.textContent='Prices saved.';
     });
@@ -71,14 +71,15 @@ form.onsubmit=async event=>{
   const quantity=Number(values.quantity);
   if(!Number.isInteger(quantity)||quantity<0){msg.textContent='Quantity must be a whole number of zero or more.';return}
   if(quantity>0&&(!values.batch_number.trim()||!validExpiryDate(values.expiry_date))){msg.textContent='For opening stock, enter a batch number and a valid expiry date that has not passed.';return}
-  const {data,error}=await supabase.from('medicines').insert({name:values.name.trim(),generic_name:values.generic_name||null,brand:values.brand||null,manufacturer:values.manufacturer||null,barcode:values.barcode||null,strength:values.strength||null,dosage_form:values.dosage_form||null,unit:'unit',purchase_price:Number(values.purchase_price),selling_price:Number(values.selling_price),min_stock:Number(values.min_stock||0),reorder_level:Number(values.reorder_level||values.min_stock||0),prescription_required:values.prescription_required==='on',controlled_medicine:values.controlled_medicine==='on'}).select('id').single();
+  const medicineId=crypto.randomUUID();
+  const {error}=await supabase.rpc('admin_import_medicines',{p_medicines:[{id:medicineId,name:values.name.trim(),generic_name:values.generic_name||null,brand:values.brand||null,manufacturer:values.manufacturer||null,barcode:values.barcode||null,strength:values.strength||null,dosage_form:values.dosage_form||null,unit:'unit',purchase_price:Number(values.purchase_price),selling_price:Number(values.selling_price),min_stock:Number(values.min_stock||0),reorder_level:Number(values.reorder_level||values.min_stock||0),prescription_required:values.prescription_required==='on',controlled_medicine:values.controlled_medicine==='on',active:true}]});
   if(error){msg.textContent=error.message;return}
   const stockResult=quantity>0
-    ?await supabase.rpc('receive_stock',{p_supplier_name:'Opening stock',p_invoice_number:'Initial medicine setup',p_items:[{medicine_id:data.id,quantity,unit_cost:Number(values.purchase_price),batch_number:values.batch_number.trim(),expiry_date:values.expiry_date}]})
-    :await supabase.from('inventory').insert({medicine_id:data.id,quantity:0});
+    ?await supabase.rpc('receive_stock',{p_supplier_name:'Opening stock',p_invoice_number:'Initial medicine setup',p_items:[{medicine_id:medicineId,quantity,unit_cost:Number(values.purchase_price),batch_number:values.batch_number.trim(),expiry_date:values.expiry_date}]})
+    :await supabase.from('inventory').insert({medicine_id:medicineId,quantity:0});
   const stockError=stockResult.error;
   if(stockError){
-    const {error:cleanupError}=await supabase.from('medicines').delete().eq('id',data.id);
+    const {error:cleanupError}=await supabase.from('medicines').delete().eq('id',medicineId);
     msg.textContent=cleanupError?`Inventory setup failed (${stockError.message}) and medicine cleanup failed (${cleanupError.message}). Contact an administrator.`:`Medicine was not added because inventory setup failed: ${stockError.message}`;
     await load();return;
   }
@@ -238,7 +239,7 @@ importButton.onclick=async()=>{
     if(match)matched.add(match.id);
     return {...medicine,id:match?.id||crypto.randomUUID(),active:true};
   });
-  const {error}=await supabase.from('medicines').upsert(medicineRows,{onConflict:'id'});
+  const {error}=await supabase.rpc('admin_import_medicines',{p_medicines:medicineRows});
   if(error){csvMsg.textContent=`Import failed: ${error.message}`;importButton.disabled=false;return}
   const directInventoryRows=medicineRows.flatMap((item,index)=>csvRows[index].quantity===0||!csvRows[index].batch_number||!csvRows[index].expiry_date?[{medicine_id:item.id,quantity:csvRows[index].quantity}]:[]);
   const {error:zeroStockError}=directInventoryRows.length?await supabase.from('inventory').upsert(directInventoryRows,{onConflict:'medicine_id'}):{error:null};
