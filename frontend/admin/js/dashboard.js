@@ -24,7 +24,7 @@ async function load(){ $('#msg').textContent=''; const {data,error}=await supaba
   animateMetric('#grossProfit',money(ot.gross_profit)); $('#cogsText').textContent='Cost of goods: '+money(ot.cogs); animateMetric('#avgSale',money(ot.avg_sale)); animateMetric('#pendingPayments',money(ot.pending_payments)); animateMetric('#expiryValue',money(ex.retail_value)); $('#expiryBatches').textContent=Number(ex.batches||0)+' batches within 30 days'; animateMetric('#inactiveSellers',Number(sec.inactive_sellers||0)); animateMetric('#audit24',Number(sec.audit_24h||0));
   const securityItems=[]; if(sec.inactive_sellers) securityItems.push(`${sec.inactive_sellers} seller account(s) are inactive.`); if(sec.pending_approvals) securityItems.push(`${sec.pending_approvals} refund/cancellation approval(s) pending.`); if(sec.pending_adjustments) securityItems.push(`${sec.pending_adjustments} stock adjustment(s) pending.`); $('#securitySummary').innerHTML=securityItems.length?securityItems.map(x=>`<div class="alert">${x}</div>`).join(''):'<div class="ok">✓ No pending security or approval actions.</div>';
   const {data:summary}=await supabase.rpc('dashboard_summary');const q=summary||{};const alerts=[];if(q.out_of_stock)alerts.push(`${q.out_of_stock} medicine(s) are out of stock.`);if(q.expired_stock)alerts.push(`${q.expired_stock} expired batch(es) still contain stock.`);if(q.expiring_30_days)alerts.push(`${q.expiring_30_days} batch(es) expire within 30 days.`);if(q.pending_prescriptions)alerts.push(`${q.pending_prescriptions} prescription(s) await review.`);if(q.pending_approvals)alerts.push(`${q.pending_approvals} approval/adjustment request(s) need attention.`);$('#alerts').innerHTML=alerts.length?alerts.map(a=>`<div class="alert">${a}</div>`).join(''):'<div class="ok">✓ No urgent operational alerts.</div>';
-  await loadDashboardAnalytics(week,q); await loadNotifications();
+  await loadDashboardAnalytics(week,q); await loadInventoryValuation(); await loadNotifications();
 }
 function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function initializeCommandCenter(){
@@ -66,6 +66,16 @@ async function loadDashboardAnalytics(fallbackWeek,summary){
   if(error)$('#chartStatus').textContent='Profit history unavailable until analytics migration is applied.';else $('#chartStatus').textContent='Updated from secured admin analytics.';
   controls.querySelectorAll('button').forEach(button=>button.onclick=()=>{controls.querySelectorAll('button').forEach(item=>{item.setAttribute('aria-pressed',String(item===button))});renderChart(button.dataset.chart,analytics)});
   renderChart('sales',analytics);
+}
+async function loadInventoryValuation(){
+  const {data,error}=await supabase.rpc('admin_inventory_valuation');
+  const buying=$('#inventoryBuyingValue'),selling=$('#inventorySellingValue'),margin=$('#inventoryGrossMargin'),units=$('#inventoryStockUnits'),message=$('#inventoryValuationMessage');
+  if(error||!data){buying.textContent=selling.textContent=margin.textContent='Unavailable';units.textContent='';message.textContent='Stock values could not be loaded.';return}
+  animateMetric('#inventoryBuyingValue',money(data.buying_value));
+  animateMetric('#inventorySellingValue',money(data.selling_value));
+  animateMetric('#inventoryGrossMargin',money(data.potential_margin));
+  units.textContent=Number(data.stock_units||0).toLocaleString()+' units';
+  message.textContent='';
 }
 async function loadNotifications(){
   const host=$('#notificationItems');if(!host)return;

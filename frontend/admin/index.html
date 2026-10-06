@@ -62,6 +62,15 @@
 				<article class="card metric"><div class="metric-top">Paid sales</div><h2 id="todaySales">0</h2><small id="todaySalesValue" class="sub">KSh 0 gross</small></article>
 				<article class="card metric"><div class="metric-top">Expenses</div><h2 id="todayExpenses">KSh 0</h2><small class="sub">Recorded today</small></article>
 			</section>
+			<section class="business-overview" aria-labelledby="inventoryValueHeading">
+				<div class="business-overview-head"><div><h2 id="inventoryValueHeading">Current stock value</h2><p class="muted">Active inventory at current prices.</p></div><small id="inventoryStockUnits" class="muted">Calculating stock…</small></div>
+				<div class="cards advanced-kpis">
+					<article class="card metric"><div class="metric-top">Total buying value</div><h2 id="inventoryBuyingValue">KSh 0</h2></article>
+					<article class="card metric"><div class="metric-top">Potential selling value</div><h2 id="inventorySellingValue">KSh 0</h2></article>
+					<article class="card metric"><div class="metric-top">Potential gross margin</div><h2 id="inventoryGrossMargin">KSh 0</h2><small class="sub">Selling value less buying value</small></article>
+				</div>
+				<p id="inventoryValuationMessage" class="muted business-note" role="status" aria-live="polite"></p>
+			</section>
 			<section class="business-overview" aria-labelledby="lifetimeHeading">
 				<div class="business-overview-head"><div><h2 id="lifetimeHeading">Business performance · all time</h2><p class="muted">Collections, refunds, costs and estimated profit since records began.</p></div><span id="profitabilityStatus" class="profitability-pill" aria-live="polite">Loading</span></div>
 				<div class="cards advanced-kpis">
