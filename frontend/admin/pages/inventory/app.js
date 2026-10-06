@@ -96,43 +96,67 @@ function numberValue(value,label,rowNumber,{integer=false,required=false}={}){
 }
 function validateCsv(text){
   const data=parseCsv(text.replace(/^\uFEFF/,''));
-  if(data.length<2)throw new Error('The CSV contains headers but no medicine rows.');
-  const aliases={medicine:'name',medicine_name:'name',medication:'name',medication_name:'name',product_name:'name',item_name:'name',drug_name:'name',qty:'quantity',stock:'quantity',quantity_in_stock:'quantity',opening_stock:'quantity',opening_quantity:'quantity',buying_price:'purchase_price',purchase_cost:'purchase_price',cost_price:'purchase_price',unit_cost:'purchase_price',cost:'purchase_price',sale_price:'selling_price',sell_price:'selling_price',retail_price:'selling_price',batch_no:'batch_number',expiry:'expiry_date'};
-  const headers=data[0].map(header=>{
-    const normalized=header.replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
-    return aliases[normalized]||normalized;
-  });
-  if(headers.some(header=>!header))throw new Error('Every CSV column must have a header.');
-  if(new Set(headers).size!==headers.length)throw new Error('The CSV has duplicate columns after normalizing their names.');
-  if(!headers.includes('name'))throw new Error('Medicine name column not found. Use the header name or medicine_name, or download the CSV template for a sample file.');
-  if(data.length>5001)throw new Error('Import up to 5,000 medicines at a time.');
-  const seenBarcodes=new Set();
-  return data.slice(1).map((cells,index)=>{
-    const rowNumber=index+2,record=Object.fromEntries(headers.map((header,column)=>[header,(cells[column]||'').trim()]));
+  if(data.length<2)throw new Error('The sheet has a header row but no medicine rows.');
+  const aliases={medicine:'name',med:'name',medicine_name:'name',name_of_medicine:'name',name_of_item:'name',medication:'name',medication_name:'name',product:'name',product_name:'name',product_description:'name',product_details:'name',item:'name',item_name:'name',item_description:'name',item_details:'name',drug:'name',drug_name:'name',drug_description:'name',description:'name',particular:'name',particulars:'name',qty:'quantity',stock:'quantity',stock_qty:'quantity',quantity_in_stock:'quantity',opening_stock:'quantity',opening_quantity:'quantity',buying_price:'purchase_price',buy_price:'purchase_price',purchase_cost:'purchase_price',cost_price:'purchase_price',unit_cost:'purchase_price',cost:'purchase_price',sale_price:'selling_price',sales_price:'selling_price',sell_price:'selling_price',retail_price:'selling_price',batch_no:'batch_number',batch:'batch_number',expiry:'expiry_date',expirydate:'expiry_date'};
+  const known=new Set(['name','generic_name','brand','manufacturer','barcode','strength','dosage_form','unit','quantity','batch_number','expiry_date','purchase_price','selling_price','min_stock','reorder_level','prescription_required','controlled_medicine']);
+  const normalize=header=>header.replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  const canonical=header=>{const normalized=normalize(header);return aliases[normalized]||normalized};
+  const headerRowIndex=data.slice(0,20).findIndex(row=>row.some(cell=>canonical(cell)==='name'));
+  const headerIndex=headerRowIndex<0?0:headerRowIndex;
+  const headers=(data[headerIndex]||[]).map((cell,index)=>{const field=canonical(cell);return field&&known.has(field)?field:`__ignored_${index}`});
+  let inferredNameColumn=false;
+  if(!headers.includes('name')){
+    const column=headers.findIndex(header=>header.startsWith('__ignored_'));
+    if(column<0)throw new Error('No medicine-name column found. Use a Medicine, Item, Product or Description heading.');
+    headers[column]='name';inferredNameColumn=true;
+  }
+  const mapped=headers.filter(header=>!header.startsWith('__ignored_'));
+  if(new Set(mapped).size!==mapped.length)throw new Error('The sheet has duplicate medicine columns after normalizing their names.');
+  if(data.length-headerIndex>5001)throw new Error('Import up to 5,000 medicines at a time.');
+  const seenBarcodes=new Set(),warnings=[];
+  if(inferredNameColumn)warnings.push('No familiar medicine-name heading was found; using the first unrecognized column as the medicine name.');
+  const items=data.slice(headerIndex+1).map((cells,index)=>{
+    const rowNumber=headerIndex+index+2;
     if(!cells.some(cell=>cell.trim()))return null;
-    if(!record.name)throw new Error(`Row ${rowNumber}: medicine name is required.`);
-    if(cells.length>headers.length)throw new Error(`Row ${rowNumber}: unexpected extra columns.`);
+    const record=Object.fromEntries(headers.map((header,column)=>header.startsWith('__ignored_')?null:[header,(cells[column]||'').trim()]).filter(Boolean));
+    if(!record.name){warnings.push(`Skipped blank-name row ${rowNumber}.`);return null}
     const barcode=record.barcode||null;
     if(barcode){const key=barcode.toLowerCase();if(seenBarcodes.has(key))throw new Error(`Row ${rowNumber}: duplicate barcode ${barcode} in this file.`);seenBarcodes.add(key)}
     const minStock=numberValue(record.min_stock,'min_stock',rowNumber,{integer:true});
-    const quantity=numberValue(record.quantity,'quantity',rowNumber,{integer:true});
+    let quantity=numberValue(record.quantity,'quantity',rowNumber,{integer:true});
     const batchNumber=record.batch_number||null,expiryDate=record.expiry_date||null;
-    if(quantity>0&&(!batchNumber||!expiryDate||!validExpiryDate(expiryDate)))throw new Error(`Row ${rowNumber}: quantity above 0 requires a batch_number and a valid, unexpired expiry_date.`);
+    if(quantity>0&&(!batchNumber||!expiryDate)){quantity=0;warnings.push(`Opening stock for ${record.name} set to 0 because batch number and expiry date are missing.`)}
+    if(quantity>0&&!validExpiryDate(expiryDate))throw new Error(`Row ${rowNumber}: expiry date must be valid and not passed.`);
     return {name:record.name,generic_name:record.generic_name||null,brand:record.brand||null,manufacturer:record.manufacturer||null,barcode,strength:record.strength||null,dosage_form:record.dosage_form||null,unit:record.unit||'unit',quantity,batch_number:batchNumber,expiry_date:expiryDate,purchase_price:numberValue(record.purchase_price,'purchase_price',rowNumber),selling_price:numberValue(record.selling_price,'selling_price',rowNumber),min_stock:minStock,reorder_level:numberValue(record.reorder_level,'reorder_level',rowNumber,{integer:true}),prescription_required:truthy(record.prescription_required,'prescription_required',rowNumber),controlled_medicine:truthy(record.controlled_medicine,'controlled_medicine',rowNumber)};
   }).filter(Boolean);
+  if(!items.length)throw new Error('No medicine rows with a medicine name were found in this sheet.');
+  return {items,warnings:warnings.slice(0,8)};
 }
-function renderPreview(items){
+function renderPreview(items,warnings=[]){
   const preview=items.slice(0,25);
   csvPreview.innerHTML=`<table class="table"><thead><tr><th>Name</th><th>Generic</th><th>Strength</th><th>Barcode</th><th>Quantity</th><th>Batch</th><th>Expiry</th><th>Buying price</th><th>Selling price</th></tr></thead><tbody>${preview.map(item=>`<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.generic_name||'-')}</td><td>${escapeHtml(item.strength||'-')}</td><td>${escapeHtml(item.barcode||'-')}</td><td>${item.quantity}</td><td>${escapeHtml(item.batch_number||'-')}</td><td>${escapeHtml(item.expiry_date||'-')}</td><td>${item.purchase_price.toFixed(2)}</td><td>${item.selling_price.toFixed(2)}</td></tr>`).join('')}</tbody></table>`;
   csvPreview.hidden=false;
-  if(items.length>preview.length)csvMsg.textContent=`Previewing ${preview.length} of ${items.length} medicines. Ready to import.`;
-  else csvMsg.textContent=`${items.length} medicine${items.length===1?'':'s'} validated. Ready to import.`;
+  const summary=items.length>preview.length?`Previewing ${preview.length} of ${items.length} medicines.`:`${items.length} medicine${items.length===1?'':'s'} ready to import.`;
+  csvMsg.textContent=[summary,...warnings].join(' ');
 }
 csvFile.onchange=async()=>{
   csvRows=[];importButton.disabled=true;csvPreview.hidden=true;csvPreview.replaceChildren();
   const file=csvFile.files?.[0];if(!file)return;
-  if(file.size>10*1024*1024){csvMsg.textContent='CSV file is too large. Maximum size is 10 MB.';return}
-  try{csvRows=validateCsv(await file.text());if(!csvRows.length)throw new Error('No medicine rows found.');renderPreview(csvRows);importButton.disabled=false}
+  if(file.size>10*1024*1024){csvMsg.textContent='File is too large. Maximum size is 10 MB.';return}
+  try{
+    const extension=file.name.split('.').pop().toLowerCase();
+    let csvText;
+    if(extension==='csv')csvText=await file.text();
+    else if(['xlsx','xls'].includes(extension)){
+      csvMsg.textContent='Reading Excel workbook…';
+      const XLSX=await import('https://esm.sh/xlsx@0.18.5');
+      const workbook=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+      const firstSheet=workbook.Sheets[workbook.SheetNames[0]];
+      if(!firstSheet)throw new Error('The workbook has no readable worksheets.');
+      csvText=XLSX.utils.sheet_to_csv(firstSheet,{dateNF:'yyyy-mm-dd'});
+    }else throw new Error('Choose an Excel workbook (.xlsx or .xls) or a CSV file.');
+    const parsed=validateCsv(csvText);csvRows=parsed.items;renderPreview(csvRows,parsed.warnings);importButton.disabled=false;
+  }
   catch(error){csvMsg.textContent=error.message}
 };
 importButton.onclick=async()=>{

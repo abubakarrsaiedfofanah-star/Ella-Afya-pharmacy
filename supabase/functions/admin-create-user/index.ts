@@ -17,16 +17,41 @@ Deno.serve(async req=>{
   try{rawBody=await req.json()}catch{return json({error:'Request body must be valid JSON.'},400)}
   if(!rawBody||typeof rawBody!=='object'||Array.isArray(rawBody))return json({error:'Invalid registration details.'},400);
   const body=rawBody as Record<string,unknown>;
+  const {data:callerProfile}=caller?await admin.from('profiles').select('role,active').eq('id',caller.id).maybeSingle():{data:null};
+  // This endpoint is configured without gateway JWT enforcement because it
+  // also supports public registration. Verify admin tokens and MFA here.
+  const isAdmin=callerProfile?.role==='admin'&&callerProfile.active&&hasVerifiedAal2(token);
+
+  if(body.action==='set_seller_active'){
+    if(!isAdmin)return json({error:'An MFA-verified Admin session is required.'},403);
+    const userId=typeof body.user_id==='string'?body.user_id:'';
+    const active=body.active;
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)||typeof active!=='boolean')return json({error:'Invalid seller activation request.'},400);
+    const {data:target,error:targetError}=await admin.from('profiles').select('id,role,active').eq('id',userId).maybeSingle();
+    if(targetError||!target||target.role!=='seller')return json({error:'Seller account not found.'},404);
+    if(active){
+      const {error:confirmError}=await admin.auth.admin.updateUserById(userId,{email_confirm:true});
+      if(confirmError){console.error('Could not confirm approved seller email',confirmError);return json({error:'Seller email could not be confirmed. Try again or check the account in Supabase Auth.'},400)}
+    }
+    const {error:updateError}=await admin.from('profiles').update({active}).eq('id',userId).eq('role','seller');
+    if(updateError)return json({error:'Seller access status could not be updated.'},500);
+    const {error:auditError}=await admin.from('audit_logs').insert({actor_id:caller!.id,action:active?'seller_activated':'seller_disabled',entity_type:'profiles',entity_id:userId,details:{active,email_confirmed_on_activation:active}});
+    if(auditError){
+      await admin.from('profiles').update({active:target.active}).eq('id',userId).eq('role','seller');
+      console.error('Seller status audit failed',auditError);
+      return json({error:'The status change could not be audited; the previous access status was restored.'},500);
+    }
+    return json({ok:true,user_id:userId,active,email_confirmed:active});
+  }
+
   const fullName=typeof body.full_name==='string'?body.full_name.trim():'';
   const email=typeof body.email==='string'?body.email.trim().toLowerCase():'';
   const password=typeof body.password==='string'?body.password:'';
   const registrationKey=typeof body.registration_key==='string'?body.registration_key:'';
   if(fullName.length<2||fullName.length>120||!email||email.length>254||!/^\S+@\S+\.\S+$/.test(email)||!password)return json({error:'Enter a valid name, email and password.'},400);
   if(!strongPassword(password))return json({error:'Use 12–128 characters with uppercase, lowercase, a number and a symbol.'},400);
-  const {data:callerProfile}=caller?await admin.from('profiles').select('role,active').eq('id',caller.id).maybeSingle():{data:null};
   // getUser(token) above verifies the JWT signature; only its verified aal2
   // claim may authorize immediate Admin-created account activation.
-  const isAdmin=callerProfile?.role==='admin'&&callerProfile.active&&hasVerifiedAal2(token);
   const configuredKey=Deno.env.get('STAFF_REGISTRATION_KEY');
   if(!isAdmin && (!configuredKey || registrationKey!==configuredKey))return json({error:'Invalid staff registration authorization.'},403);
   const {data:created,error}=await admin.auth.admin.createUser({email,password,email_confirm:isAdmin,user_metadata:{full_name:fullName}});

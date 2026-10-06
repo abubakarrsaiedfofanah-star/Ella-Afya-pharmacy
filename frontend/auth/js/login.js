@@ -23,7 +23,7 @@ form.addEventListener('submit',async e=>{e.preventDefault();if(renderLock())retu
     setSessionPersistence(remember.checked);
   const cleanEmail=email.value.trim().toLowerCase();
   const {error}=await supabase.auth.signInWithPassword({email:cleanEmail,password:password.value});
-  if(error){recordFailure();safeMsg(error.status===429?'Too many sign-in attempts. Try again shortly.':'Unable to sign in with those credentials.');setBusy(false);return}
+  if(error){recordFailure();safeMsg(error.status===429?'Too many sign-in attempts. Try again shortly.':error.code==='email_not_confirmed'?'This email still needs confirmation. Ask the Admin to activate the account from Staff, then try again.':'Unable to sign in with those credentials.');setBusy(false);return}
   saveLock({fails:0,until:0});
   const {data:{user},error:userError}=await supabase.auth.getUser();
   if(userError||!user){await supabase.auth.signOut();safeMsg('Unable to verify this account. Please sign in again.');setBusy(false);return}

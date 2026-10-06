@@ -12,7 +12,7 @@ async function loadSellers(){
   const {data,error}=await supabase.from('profiles').select('id,full_name,role,active,created_at').eq('role','seller').order('created_at',{ascending:false});
   if(error){rows.innerHTML='<tr><td colspan="5">Staff accounts could not be loaded.</td></tr>';msg.textContent='Try refreshing the staff list.';return []}
   const sellers=data||[];
-  rows.innerHTML=sellers.map(item=>`<tr><td><strong>${esc(item.full_name||'Seller')}</strong></td><td class="muted">${esc(item.id.slice(0,8))}…</td><td><span class="status ${item.active?'status-ok':'status-off'}">${item.active?'Active':'Inactive'}</span></td><td>${esc(new Date(item.created_at).toLocaleDateString())}</td><td><button type="button" class="btn secondary action" data-id="${esc(item.id)}" data-active="${item.active}">${item.active?'Disable':'Activate'}</button></td></tr>`).join('')||'<tr><td colspan="5">No seller accounts found.</td></tr>';
+  rows.innerHTML=sellers.map(item=>`<tr><td><strong>${esc(item.full_name||'Seller')}</strong></td><td class="muted">${esc(item.id.slice(0,8))}…</td><td><span class="status ${item.active?'status-ok':'status-off'}">${item.active?'Active':'Inactive'}</span></td><td>${esc(new Date(item.created_at).toLocaleDateString())}</td><td><button type="button" class="btn secondary action" data-id="${esc(item.id)}" data-active="${item.active}">${item.active?'Disable':'Activate'}</button>${item.active?' <button type="button" class="btn secondary action" data-id="'+esc(item.id)+'" data-active="true" data-confirm="true">Fix sign-in</button>':''}</td></tr>`).join('')||'<tr><td colspan="5">No seller accounts found.</td></tr>';
   return sellers;
 }
 
@@ -36,9 +36,10 @@ rows.addEventListener('click',async event=>{
   const button=event.target.closest('.action');
   if(!button||button.disabled)return;
   button.disabled=true;
-  const {error}=await supabase.rpc('set_seller_active',{p_user_id:button.dataset.id,p_active:button.dataset.active!=='true'});
-  if(error){msg.textContent='Seller status could not be changed.';button.disabled=false;return}
-  msg.textContent=`Seller ${button.dataset.active==='true'?'disabled':'activated'} successfully.`;
+  const shouldBeActive=button.dataset.confirm==='true'||button.dataset.active!=='true';
+  const {data,error}=await supabase.functions.invoke('admin-create-user',{body:{action:'set_seller_active',user_id:button.dataset.id,active:shouldBeActive}});
+  if(error||data?.error){msg.textContent=data?.error||'Seller status could not be changed. Deploy the updated admin-create-user Edge Function and try again.';button.disabled=false;return}
+  msg.textContent=shouldBeActive?'Seller access is active and the email is confirmed. They can sign in now.':'Seller access disabled.';
   await loadSellers();
 });
 $('#refresh').addEventListener('click',loadSellers);

@@ -95,7 +95,7 @@ Never put `SUPABASE_SERVICE_ROLE_KEY`, M-Pesa consumer secret, passkey or other 
 2. Run migrations 001 through 031 in order. Run migrations 026 and 027 separately, in that order, and let 026 finish before starting 027. Then run 028, 029, 030, and 031. Migration 030 adds MFA-protected admin payroll, private receipt-signature storage, immutable signer snapshots, and signed receipt verification. Migration 031 restricts purchase-cost access to the admin-only catalogue view. Set the signer name and upload the admin signature in Pharmacy Settings after applying migration 030.
 3. Configure Supabase Auth.
 4. Create the first admin profile securely.
-5. Deploy the updated `admin-create-user` Edge Function after migration 027 so immediate Admin-created Sales activation also requires an MFA-verified Admin session. Manual M-PESA receipt verification works without Daraja; deploy the M-PESA Edge Functions only when enabling online/API payments.
+5. Deploy the updated `admin-create-user` Edge Function after migration 027. It requires MFA for Admin actions and confirms a pending Sales email when the Admin activates that account, so the seller can sign in without waiting on a missing confirmation email. Manual M-PESA receipt verification works without Daraja; deploy the M-PESA Edge Functions only when enabling online/API payments.
 6. For Daraja API payments, add the M-Pesa secrets in Supabase Edge Function secrets.
 7. For Daraja C2B notifications, register the C2B callback URLs using `npm run mpesa:register-c2b`.
 8. Deploy the frontend to Vercel. The public pharmacy website is served at `/`; Sales and Admin sign-ins remain at `/auth/` and `/auth/admin/`.
@@ -162,7 +162,7 @@ Additional UI upgrades include mobile navigation, responsive export controls, th
 - Set a high-entropy `STAFF_REGISTRATION_KEY` Edge Function secret (at least 32 random bytes) if self-registration is desired. Keep it private and rotate it periodically.
 - Set `ALLOWED_ORIGIN` to the exact production frontend origin. CORS is browser isolation, not an authorization boundary; registration is independently gated by an active admin session or the registration key.
 - Registration requires 12–128 characters with uppercase, lowercase, a number and a symbol; the Edge Function validates this independently of the browser. Configure Supabase Auth to enforce the same policy for password resets and authenticated password updates.
-- `admin-create-user` has gateway JWT verification disabled to support key-authorized public registration; the function validates bearer tokens and admin roles itself before privileged account creation.
+- `admin-create-user` has gateway JWT verification disabled to support key-authorized public registration; the function validates bearer tokens and admin roles itself before privileged account creation or Sales activation/email confirmation.
 - Never put a Supabase service-role key in frontend code.
 
 ## Advanced Operations Upgrade
