@@ -22,15 +22,21 @@
     <details class="site-menu">
       <summary aria-label="Open website menu"><span></span><span></span><span></span></summary>
       <nav aria-label="Main navigation">
-        <a href="#services">Our services</a>
-        <a href="#steps">How it works</a>
-        <a href="#faq">Common questions</a>
+        <a href="/" aria-current="page">Home</a>
+        <a href="/services/">Services</a>
+        <a href="/medicines/">Medicines</a>
+        <a href="/prescriptions/">Prescriptions</a>
+        <a href="/payments/">Payments</a>
+        <a href="/about/">About</a>
       </nav>
     </details>
     <nav class="desktop-nav" aria-label="Main navigation">
-      <a href="#services">Our services</a>
-      <a href="#steps">How it works</a>
-      <a href="#faq">Common questions</a>
+      <a href="/" aria-current="page">Home</a>
+      <a href="/services/">Services</a>
+      <a href="/medicines/">Medicines</a>
+      <a href="/prescriptions/">Prescriptions</a>
+      <a href="/payments/">Payments</a>
+      <a href="/about/">About</a>
     </nav>
   </header>
 
@@ -75,10 +81,10 @@
       </div>
       <p id="serviceResults" class="service-results" aria-live="polite">Showing all 4 services.</p>
       <div class="feature-grid">
-        <article class="feature-card feature-stock" data-service-category="medicines"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5zM4.5 7.7 12 12l7.5-4.3M12 12v9M8 5.3l8 4.5"/></svg></div><span class="feature-number">MEDICINES</span><h3>Everyday medicines</h3><p>Ask our pharmacy team about medicines and health essentials for your needs.</p></article>
-        <article class="feature-card feature-sales" data-service-category="prescriptions"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1ZM14 3.8V8h4M9 12h6M9 16h6"/></svg></div><span class="feature-number">PRESCRIPTIONS</span><h3>Prescription medicines</h3><p>Bring a valid prescription for medicines that require one. Our team will review it before dispensing.</p></article>
-        <article class="feature-card feature-rx" data-service-category="prescriptions"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9M12 7v5l3 2M19 3v5h-5"/></svg></div><span class="feature-number">SUPPORT</span><h3>Prescription support</h3><p>Get help understanding what to bring and what to expect when presenting a prescription.</p></article>
-        <article class="feature-card feature-reports" data-service-category="payments"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></div><span class="feature-number">PAYMENT</span><h3>Pay at the counter</h3><p>Pay for your purchase by cash or M-Pesa PayBill at the pharmacy counter.</p></article>
+        <article class="feature-card feature-stock" data-service-category="medicines"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5zM4.5 7.7 12 12l7.5-4.3M12 12v9M8 5.3l8 4.5"/></svg></div><span class="feature-number">MEDICINES</span><h3>Everyday medicines</h3><p>Ask our pharmacy team about medicines and health essentials for your needs.</p><a href="/medicines/">Medicine information <span aria-hidden="true">&#8594;</span></a></article>
+        <article class="feature-card feature-sales" data-service-category="prescriptions"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1ZM14 3.8V8h4M9 12h6M9 16h6"/></svg></div><span class="feature-number">PRESCRIPTIONS</span><h3>Prescription medicines</h3><p>Bring a valid prescription for medicines that require one. Our team will review it before dispensing.</p><a href="/prescriptions/">Prescription information <span aria-hidden="true">&#8594;</span></a></article>
+        <article class="feature-card feature-rx" data-service-category="prescriptions"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9M12 7v5l3 2M19 3v5h-5"/></svg></div><span class="feature-number">SUPPORT</span><h3>Prescription support</h3><p>Get help understanding what to bring and what to expect when presenting a prescription.</p><a href="/prescriptions/">What to bring <span aria-hidden="true">&#8594;</span></a></article>
+        <article class="feature-card feature-reports" data-service-category="payments"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></div><span class="feature-number">PAYMENT</span><h3>Pay at the counter</h3><p>Pay for your purchase by cash or M-Pesa PayBill at the pharmacy counter.</p><a href="/payments/">Payment information <span aria-hidden="true">&#8594;</span></a></article>
       </div>
     </section>
 
@@ -114,7 +120,7 @@
     <section class="final-cta" aria-labelledby="cta-title"><div class="cta-orb" aria-hidden="true"></div><div class="cta-content"><span class="eyebrow">ELLA AFYA PHARMACY</span><h2 id="cta-title">We're here to help.</h2><p>Visit the pharmacy team for medicine availability and prescription support.</p><div class="hero-actions"><a class="button button-white" href="#services">See our services <span aria-hidden="true">&#8594;</span></a><a class="button button-outline" href="#faq">Common questions</a></div></div></section>
   </main>
 
-  <footer class="site-footer"><a class="site-brand footer-brand" href="/" aria-label="Ella Afya Pharmacy home"><img src="/shared/assets/ella-afya-mark.png" alt=""><span><strong>Ella Afya</strong><small>YOUR COMMUNITY PHARMACY</small></span></a><p>Medicine and prescription support for your everyday health.</p><div><a href="#services">Services</a><a href="#steps">How it works</a><a href="#faq">Questions</a></div><small class="copyright">&#169; 2026 Ella Afya Pharmacy</small></footer>
+  <footer class="site-footer"><a class="site-brand footer-brand" href="/" aria-label="Ella Afya Pharmacy home"><img src="/shared/assets/ella-afya-mark.png" alt=""><span><strong>Ella Afya</strong><small>YOUR COMMUNITY PHARMACY</small></span></a><p>Medicine and prescription support for your everyday health.</p><div><a href="/services/">Services</a><a href="/medicines/">Medicines</a><a href="/prescriptions/">Prescriptions</a><a href="/payments/">Payments</a><a href="/about/">About</a></div><small class="copyright">&#169; 2026 Ella Afya Pharmacy</small></footer>
   <script src="/landing.js" defer></script>
 </body>
 </html>
