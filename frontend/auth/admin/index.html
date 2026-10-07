@@ -33,13 +33,13 @@
           <h2>Admin sign in</h2>
           <p>Use your authorized administrator account. Multi-factor verification is required.</p>
         </div>
-        <form id="loginForm">
+        <form id="loginForm" autocomplete="off">
           <label for="email">Administrator email
-            <input id="email" name="email" type="email" autocomplete="username" placeholder="admin@pharmacy.com" required>
+            <input id="email" name="email" type="email" autocomplete="off" placeholder="admin@pharmacy.com" required>
           </label>
           <label for="password">Password
             <div class="password-field">
-              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+              <input id="password" name="password" type="password" autocomplete="new-password" placeholder="Enter your password" required>
               <button type="button" class="eye" id="togglePassword" aria-label="Show password">&#9673;</button>
             </div>
           </label>
