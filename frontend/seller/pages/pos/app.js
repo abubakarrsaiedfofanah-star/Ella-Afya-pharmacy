@@ -6,6 +6,8 @@ let medicines=[];
 let cart=[];
 let activeSaleId=null;
 let activeSaleNumber='';
+let savedPendingCart=[];
+let savingPendingCart=false;
 const pendingClaimKey='pharmacy-pending-mpesa-claims';
 let awaitingApprovalSaleIds=(()=>{try{return JSON.parse(sessionStorage.getItem(pendingClaimKey)||'[]').filter(id=>typeof id==='string')}catch{return []}})();
 let outstanding=0;
@@ -49,14 +51,14 @@ async function load(){
     ]);
     const pendingSale=pendingSaleResult.data,saleLines=saleLinesResult.data,paidPayments=paidPaymentResult.data;
     if(pendingSaleResult.error||saleLinesResult.error||paidPaymentResult.error){message.textContent='Could not restore this saved sale. No new sale was started and recorded payments remain unchanged. Retry from Receipts.'}
-    else if(pendingSale?.status==='pending_payment'&&saleLines?.length){
-      activeSaleId=pendingSale.id;activeSaleNumber=pendingSale.sale_number||'';outstanding=Math.max(0,Math.round((Number(pendingSale.total_amount)-(paidPayments||[]).reduce((sum,payment)=>sum+Number(payment.amount||0),0))*100)/100);cart=saleLines.map(item=>({id:item.medicine_id,name:item.medicines?.name||'Medicine',price:Number(item.unit_price),quantity:Number(item.quantity)}));
+    else if(pendingSale?.status==='pending_payment'){
+      activeSaleId=pendingSale.id;activeSaleNumber=pendingSale.sale_number||'';outstanding=Math.max(0,Math.round((Number(pendingSale.total_amount)-(paidPayments||[]).reduce((sum,payment)=>sum+Number(payment.amount||0),0))*100)/100);cart=(saleLines||[]).map(item=>({id:item.medicine_id,name:item.medicines?.name||'Medicine',price:Number(item.unit_price),quantity:Number(item.quantity)}));savedPendingCart=cart.map(item=>({...item}));
       $('#customerName').value=pendingSale.customer_name||'';$('#customerPhone').value=pendingSale.customer_phone||'';$('#method').disabled=false;
       $('#tillOrderNumber').textContent=pendingSale.sale_number;$('#tillAmount').textContent=money(pendingSale.total_amount);updatePaymentFields();
-      if(outstanding>0){message.textContent=`Resumed ${pendingSale.sale_number}. ${money(outstanding)} remains. Continue here to record payment against this same sale.`;$('#checkout').disabled=false}
+      if(outstanding>0&&cart.length){message.textContent=`Resumed ${pendingSale.sale_number}. ${money(outstanding)} remains. Continue here to record payment against this same sale.`;$('#checkout').disabled=false}
+      else if(!cart.length){message.textContent=`Resumed ${pendingSale.sale_number}. Add medicine items to this same sale before taking payment.`;$('#checkout').disabled=true}
       else{message.textContent=`${pendingSale.sale_number} has no balance remaining. Refresh My Receipts to confirm its final status.`;$('#checkout').disabled=true}
-    }else if(pendingSale?.status==='pending_payment')message.textContent='This saved sale has no readable items, so payment is blocked to prevent creating a different sale.';
-    else message.textContent=pendingSale?'This sale is no longer pending payment. Refresh Receipts for its current status.':'This pending sale could not be found for your account.';
+    }else message.textContent=pendingSale?'This sale is no longer pending payment. Refresh Receipts for its current status.':'This pending sale could not be found for your account.';
     if(pendingSale?.status!=='pending_payment'||!pendingSale||pendingSaleResult.error||saleLinesResult.error||paidPaymentResult.error)$('#checkout').disabled=true;
     history.replaceState({},'',location.pathname);
   }
@@ -82,6 +84,7 @@ async function refreshCatalog(){
 }
 
 function addMedicine(id){
+  if(savingPendingCart)return;
   const medicine=medicines.find(item=>item.id===id);if(!medicine)return;
   if(sellableStock(medicine)<=0){message.textContent='No inventory is available for this medicine.';return}
   const line=cart.find(item=>item.id===medicine.id);
@@ -91,7 +94,32 @@ function addMedicine(id){
     line.quantity+=1;
   }
   else cart.push({id:medicine.id,name:medicine.name,price:Number(medicine.selling_price),quantity:1});
-  message.textContent='';renderCart();
+  message.textContent='';cartChanged();
+}
+
+function cartChanged(){renderCart();if(activeSaleId)void persistPendingSaleCart()}
+
+async function persistPendingSaleCart(){
+  if(!activeSaleId||savingPendingCart)return;
+  savingPendingCart=true;
+  const saleId=activeSaleId;
+  $('#checkout').disabled=true;$('#newSaleFromPending').disabled=true;
+  message.textContent='Saving item changes to this pending sale…';
+  try{
+    const {data,error}=await supabase.rpc('update_pending_sale_items',{p_sale_id:saleId,p_items:cart.map(item=>({medicine_id:item.id,quantity:item.quantity}))});
+    if(error||!data){cart=savedPendingCart.map(item=>({...item}));renderCart();message.textContent=error?.message||'Sale changes could not be saved. The original pending sale is unchanged.';return}
+    if(activeSaleId!==saleId)return;
+    activeSaleNumber=data.sale_number||activeSaleNumber;outstanding=Number(data.balance||0);
+    cart=(data.items||[]).map(item=>({id:item.medicine_id,name:item.name,price:Number(item.unit_price),quantity:Number(item.quantity)}));
+    savedPendingCart=cart.map(item=>({...item}));renderCart();
+    message.textContent=outstanding>0?`Sale updated. ${money(outstanding)} remains due on ${activeSaleNumber||'this sale'}.`:'Sale updated. Add an item before recording payment.';
+    $('#checkout').disabled=cart.length===0||outstanding<=0;
+  }catch(error){
+    cart=savedPendingCart.map(item=>({...item}));renderCart();message.textContent=error.message||'Sale changes could not be saved. The original pending sale is unchanged.';
+  }finally{
+    savingPendingCart=false;$('#newSaleFromPending').disabled=false;
+    if(activeSaleId&&cart.length&&outstanding>0)$('#checkout').disabled=false;
+  }
 }
 
 function renderMedicines(){
@@ -118,12 +146,13 @@ function renderCart(){
     return sellableStock(medicine);
   };
   cartElement.querySelectorAll('[data-quantity]').forEach(button=>button.addEventListener('click',()=>{
+    if(savingPendingCart)return;
     const index=Number(button.dataset.index),next=cart[index].quantity+Number(button.dataset.quantity);
     if(next>0&&next>cartAvailable(cart[index])){message.textContent='Quantity cannot exceed available stock.';return}
     if(next<=0)cart.splice(index,1);else cart[index].quantity=next;
-    renderCart();
+    cartChanged();
   }));
-  cartElement.querySelectorAll('[data-remove]').forEach(button=>button.addEventListener('click',()=>{cart.splice(Number(button.dataset.remove),1);renderCart()}));
+  cartElement.querySelectorAll('[data-remove]').forEach(button=>button.addEventListener('click',()=>{if(savingPendingCart)return;cart.splice(Number(button.dataset.remove),1);cartChanged()}));
   const total=fromCents(cart.reduce((sum,item)=>sum+toCents(item.price)*item.quantity,0));
   const amountDue=activeSaleId?outstanding:total;
   totalElement.textContent=money(amountDue);
@@ -163,7 +192,8 @@ function updatePaymentFields(){
 }
 $('#method').addEventListener('change',updatePaymentFields);
 $('#newSaleFromPending').addEventListener('click',()=>{
-  activeSaleId=null;activeSaleNumber='';outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#mpesaTransactionCode').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;$('#receiptPreview').hidden=true;
+  if(savingPendingCart)return;
+  activeSaleId=null;activeSaleNumber='';savedPendingCart=[];outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#mpesaTransactionCode').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;$('#receiptPreview').hidden=true;
   renderCart();updatePaymentFields();
   message.textContent='This sale remains saved as pending with all recorded payments intact. Start another sale now, or resume it later from My Receipts.';
 });
@@ -210,7 +240,7 @@ $('#checkout').addEventListener('click',async()=>{
     activeSaleId=saleId;
     const {data:savedSale,error:savedSaleError}=await supabase.from('sales').select('sale_number,total_amount').eq('id',saleId).single();
     if(savedSaleError||!savedSale){message.textContent='Sale saved as pending, but its total could not be loaded. Refresh and resume the pending sale before taking payment.';return}
-    activeSaleNumber=savedSale.sale_number||'';outstanding=Number(savedSale.total_amount);
+    activeSaleNumber=savedSale.sale_number||'';outstanding=Number(savedSale.total_amount);savedPendingCart=cart.map(item=>({...item}));
     saleJustCreated=true;
   }
   button.disabled=true;
@@ -256,7 +286,7 @@ $('#checkout').addEventListener('click',async()=>{
   message.textContent=method==='cash'&&changeDue>0?`Sale fully paid. Return ${money(changeDue)} change. Stock update confirmed by the server.`:method==='mpesa'?'Sale fully paid. The M-Pesa code is recorded as seller reported; receipt issued and stock updated.':'Sale fully paid. Stock update confirmed by the server.';
   const confirmedSale=await loadReceiptReference(completedSaleId);
   await showReceipt(completedSaleId,confirmedSale?.sale_number||completedSaleId);
-  activeSaleId=null;activeSaleNumber='';outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#mpesaTransactionCode').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;
+  activeSaleId=null;activeSaleNumber='';savedPendingCart=[];outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#mpesaTransactionCode').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;
   renderCart();updatePaymentFields();await load();
 });
 

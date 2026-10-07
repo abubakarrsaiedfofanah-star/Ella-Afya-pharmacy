@@ -51,6 +51,14 @@
 .till-instructions dl{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
 .medicine-results-meta{min-height:16px;margin:8px 2px;font-size:11px}
 #cartPanel{scroll-margin-top:84px}
+.cart-line{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"details total" "controls controls";gap:8px 12px;min-width:0}
+.cart-line>div:first-child{grid-area:details;min-width:0;overflow-wrap:anywhere}
+.cart-line .quantity-control{grid-area:controls;display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+.cart-line .line-total{grid-area:total;align-self:start;white-space:nowrap;text-align:right}
+.cart-line .quantity-control button{flex:0 0 42px;min-width:42px;min-height:42px}
+.cart-line .quantity-control .remove-line{flex:0 1 auto;min-width:82px;min-height:42px;padding:0 10px;white-space:nowrap}
+.cart-line>div:first-child strong,.cart-line>div:first-child small{overflow-wrap:anywhere}
+.cart-panel #cart{min-width:0;overflow-x:hidden}
 .mobile-cart-summary{display:none}
 .mobile-cart-summary[hidden]{display:none}
 @media(max-width:900px){
