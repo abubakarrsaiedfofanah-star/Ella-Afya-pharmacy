@@ -89,10 +89,11 @@ async function loadNotifications(){
 }
 let dashboardRefreshInProgress=false,dashboardHasLoaded=false;
 function refreshDashboard(){if(dashboardRefreshInProgress)return;dashboardRefreshInProgress=true;const values=document.querySelectorAll('.metric h2,.advanced-kpis h2');if(!dashboardHasLoaded)values.forEach(value=>{value.classList.add('skeleton');value.setAttribute('aria-busy','true')});return load().finally(()=>{dashboardHasLoaded=true;dashboardRefreshInProgress=false;values.forEach(value=>{value.classList.remove('skeleton');value.removeAttribute('aria-busy')})})}
-$('#refreshBtn').onclick=refreshDashboard; initializeCommandCenter(); refreshDashboard();setInterval(refreshDashboard,60000);
+$('#refreshBtn').onclick=refreshDashboard; initializeCommandCenter(); refreshDashboard();const dashboardPoll=window.setInterval(()=>{if(document.visibilityState==='visible')void refreshDashboard()},120000);
 let dashboardRealtimeTimer=0;
 const dashboardRealtime=supabase.channel('admin-dashboard-live-updates')
-  .on('postgres_changes',{event:'*',schema:'public',table:'sales'},()=>{window.clearTimeout(dashboardRealtimeTimer);dashboardRealtimeTimer=window.setTimeout(()=>void refreshDashboard(),350)})
-  .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},()=>{window.clearTimeout(dashboardRealtimeTimer);dashboardRealtimeTimer=window.setTimeout(()=>void refreshDashboard(),350)})
+  .on('postgres_changes',{event:'*',schema:'public',table:'sales'},()=>{window.clearTimeout(dashboardRealtimeTimer);dashboardRealtimeTimer=window.setTimeout(()=>void refreshDashboard(),700)})
+  .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},()=>{window.clearTimeout(dashboardRealtimeTimer);dashboardRealtimeTimer=window.setTimeout(()=>void refreshDashboard(),700)})
   .subscribe();
-window.addEventListener('pagehide',()=>{window.clearTimeout(dashboardRealtimeTimer);void supabase.removeChannel(dashboardRealtime)},{once:true});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refreshDashboard()});
+window.addEventListener('pagehide',()=>{window.clearInterval(dashboardPoll);window.clearTimeout(dashboardRealtimeTimer);void supabase.removeChannel(dashboardRealtime)},{once:true});

@@ -13,16 +13,6 @@ function localDayRange(){
   return {start:start.toISOString(),end:end.toISOString(),date:dateKey(now)};
 }
 
-async function readTodayRows(table,columns,range){
-  const pageSize=500,rows=[];
-  for(let offset=0;;offset+=pageSize){
-    const result=await supabase.from(table).select(columns).gte('created_at',range.start).lt('created_at',range.end).order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+pageSize-1);
-    if(result.error)return {data:null,error:result.error};
-    rows.push(...(result.data||[]));
-    if((result.data||[]).length<pageSize)return {data:rows,error:null};
-  }
-}
-
 function renderRecentSales(sales){
   const host=$('#recentSales');host.replaceChildren();
   if(!sales.length){const empty=document.createElement('p');empty.className='muted seller-empty';empty.textContent='No sales recorded today. Start a sale when you are ready.';host.append(empty);return}
@@ -43,16 +33,18 @@ function renderRecentSales(sales){
 }
 
 let loading=false;
+let refreshTimer=0,reloadQueued=false;
 async function load(){
-  if(loading)return;
+  if(document.visibilityState!=='visible')return;
+  if(loading){reloadQueued=true;return}
   loading=true;$('#refreshBtn').disabled=true;$('#msg').textContent='';
   try{
     const range=localDayRange();
     $('#todayLabel').textContent=`${new Date(`${range.date}T12:00:00`).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}.`;
-    const [{data:shift,error:shiftError},{data:sales,error:salesError},{data:payments,error:paymentsError}]=await Promise.all([
+    const [{data:shift,error:shiftError},{data:summary,error:summaryError},{data:recentSales,error:salesError}]=await Promise.all([
       supabase.from('shift_sessions').select('status,opened_at').eq('seller_id',session.user.id).eq('status','open').order('opened_at',{ascending:false}).limit(1).maybeSingle(),
-      readTodayRows('sales','id,sale_number,total_amount,status,created_at',range),
-      readTodayRows('payments','id,amount,status,created_at',range)
+      supabase.rpc('seller_daily_summary'),
+      supabase.from('sales').select('id,sale_number,total_amount,status,created_at').eq('seller_id',session.user.id).gte('created_at',range.start).lt('created_at',range.end).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(7)
     ]);
     if(shiftError)$('#shiftDetail').textContent='Shift status could not be loaded';
     else if(shift?.status==='open'){
@@ -60,23 +52,25 @@ async function load(){
       $('#shiftDetail').textContent=`Opened ${new Date(shift.opened_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
     }else{$('#shift').textContent='CLOSED';$('#shift').dataset.state='closed';$('#shiftDetail').textContent='Open a shift before serving customers'}
 
-    if(salesError){$('#todaySales').textContent='—';$('#todaySalesDetail').textContent='Sales could not be loaded';$('#pendingAmount').textContent='—';$('#pendingCount').textContent='Pending sales unavailable';$('#recentSales').textContent='Your sales could not be loaded.'}
+    if(salesError||summaryError){$('#todaySales').textContent='—';$('#todaySalesDetail').textContent='Sales could not be loaded';$('#pendingAmount').textContent='—';$('#pendingCount').textContent='Pending sales unavailable';$('#recentSales').textContent='Your sales could not be loaded.'}
     else{
-      const rows=sales||[],settled=rows.filter(sale=>['paid','refund_requested','refunded'].includes(sale.status)),pending=rows.filter(sale=>sale.status==='pending_payment');
-      $('#todaySales').textContent=settled.length.toLocaleString();$('#todaySalesDetail').textContent=`${money(settled.reduce((total,sale)=>total+Number(sale.total_amount||0),0))} sale value before refunds`;
-      $('#pendingAmount').textContent=money(pending.reduce((total,sale)=>total+Number(sale.total_amount||0),0));$('#pendingCount').textContent=`${pending.length} pending sale${pending.length===1?'':'s'}`;
-      renderRecentSales(rows);
+      const s=summary||{};$('#todaySales').textContent=Number(s.sales_count||0).toLocaleString();$('#todaySalesDetail').textContent=`${money(s.sales_total)} sale value before refunds`;
+      $('#pendingAmount').textContent=money(s.pending_amount);$('#pendingCount').textContent=`${Number(s.pending_count||0)} pending sale${Number(s.pending_count)===1?'':'s'}`;
+      renderRecentSales(recentSales||[]);
     }
-    if(paymentsError){$('#todayCollections').textContent='Unavailable';$('#todayCollectionsDetail').textContent='Payments could not be loaded'}
-    else{
-      const rows=payments||[],paid=rows.filter(payment=>payment.status==='paid').reduce((total,payment)=>total+Number(payment.amount||0),0),refunded=rows.filter(payment=>payment.status==='refunded').reduce((total,payment)=>total+Number(payment.amount||0),0);
-      $('#todayCollections').textContent=money(paid);$('#todayCollectionsDetail').textContent=`${money(refunded)} refunded`;
-    }
-    if(shiftError||salesError||paymentsError)$('#msg').textContent='Some workspace figures could not be refreshed. Check your connection and try again.';
+    if(summaryError){$('#todayCollections').textContent='Unavailable';$('#todayCollectionsDetail').textContent='Payments could not be loaded'}
+    else{$('#todayCollections').textContent=money(summary?.payments_total);$('#todayCollectionsDetail').textContent=`${money(summary?.refunded_total)} refunded`}
+    if(shiftError||salesError||summaryError)$('#msg').textContent='Some workspace figures could not be refreshed. Check your connection and try again.';
   }catch(error){$('#msg').textContent='Workspace figures could not be refreshed. Check your connection and try again.';console.error('Sales dashboard refresh failed',error)}
-  finally{loading=false;$('#refreshBtn').disabled=false}
+  finally{loading=false;$('#refreshBtn').disabled=false;if(reloadQueued){reloadQueued=false;window.setTimeout(()=>void load(),0)}}
 }
 
 $('#refreshBtn').addEventListener('click',load);
 load();
-setInterval(load,60000);
+const dashboardRealtime=supabase.channel('seller-home-live-updates')
+  .on('postgres_changes',{event:'*',schema:'public',table:'sales',filter:`seller_id=eq.${session.user.id}`},()=>{window.clearTimeout(refreshTimer);refreshTimer=window.setTimeout(()=>void load(),400)})
+  .on('postgres_changes',{event:'*',schema:'public',table:'payments'},()=>{window.clearTimeout(refreshTimer);refreshTimer=window.setTimeout(()=>void load(),400)})
+  .subscribe();
+const dashboardPoll=window.setInterval(()=>{if(document.visibilityState==='visible')void load()},60000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void load()});
+window.addEventListener('pagehide',()=>{window.clearInterval(dashboardPoll);window.clearTimeout(refreshTimer);void supabase.removeChannel(dashboardRealtime)},{once:true});

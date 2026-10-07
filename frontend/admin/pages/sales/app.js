@@ -114,7 +114,7 @@ const salesRealtime=supabase.channel('admin-sales-live-updates')
   .on('postgres_changes',{event:'*',schema:'public',table:'sales'},()=>{if(loading)reloadQueued=true;else void load()})
   .on('postgres_changes',{event:'*',schema:'public',table:'payments'},()=>{if(loading)reloadQueued=true;else void load()})
   .subscribe();
-const salesRefreshTimer=window.setInterval(load,30000);
-const claimsRefreshTimer=window.setInterval(loadClaims,10000);
+const salesRefreshTimer=window.setInterval(load,60000);
+const claimsRefreshTimer=window.setInterval(loadClaims,60000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){void load();void loadClaims()}});
 window.addEventListener('pagehide',()=>{window.clearInterval(salesRefreshTimer);window.clearInterval(claimsRefreshTimer);void supabase.removeChannel(salesRealtime)},{once:true});
