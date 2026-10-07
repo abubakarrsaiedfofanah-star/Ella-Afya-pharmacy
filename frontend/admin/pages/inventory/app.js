@@ -8,6 +8,7 @@ const $=selector=>document.querySelector(selector);
 const form=$('#form'),rows=$('#rows'),msg=$('#msg'),search=$('#search'),filter=$('#filter'),catalogMsg=$('#catalogMsg');
 const csvFile=$('#csvFile'),csvMsg=$('#csvMsg'),csvPreview=$('#csvPreview'),importButton=$('#importCsv');
 let medicines=[],csvRows=[];
+filter.querySelector('option[value="active"]').textContent='In stock';
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const stockQuantity=item=>{const stock=Array.isArray(item.inventory)?item.inventory[0]:item.inventory;return Number(stock?.quantity)||0};
 const localDate=()=>{const date=new Date();return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`};
@@ -37,11 +38,11 @@ function render(){
   const query=search.value.toLowerCase(),mode=filter.value;
   rows.innerHTML=medicines.filter(item=>`${item.name} ${item.generic_name||''} ${item.barcode||''}`.toLowerCase().includes(query)).filter(item=>{
     const quantity=stockQuantity(item);
-    if(mode==='active')return item.active;
+    if(mode==='active')return item.active&&quantity>0;
     if(mode==='inactive')return !item.active;
     if(!item.active&&mode!=='all')return false;
-    return mode==='low'?quantity<=item.min_stock:mode==='out'?quantity===0:mode==='rx'?item.prescription_required:true;
-  }).map(item=>`<tr data-medicine-row="${escapeHtml(item.id)}"><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}${item.active?'':' · Inactive'}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td><input class="catalog-price" data-price="buying" type="number" min="0" step="0.01" value="${item.purchase_price??''}" aria-label="Buying price for ${escapeHtml(item.name)}" disabled></td><td><input class="catalog-price" data-price="selling" type="number" min="0" step="0.01" value="${Number(item.selling_price)}" aria-label="Selling price for ${escapeHtml(item.name)}" disabled></td><td>${stockQuantity(item)}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td><td>${item.active?`<button class="btn secondary" type="button" data-edit-prices="${escapeHtml(item.id)}">Edit prices</button>`:`<button class="btn secondary" type="button" data-restore="${escapeHtml(item.id)}">Restore</button>`}</td></tr>`).join('')||'<tr><td colspan="10">No medicines found.</td></tr>';
+    return mode==='low'?quantity>0&&quantity<=item.min_stock:mode==='out'?quantity===0:mode==='rx'?item.prescription_required:true;
+  }).map(item=>`<tr data-medicine-row="${escapeHtml(item.id)}"><td><b>${escapeHtml(item.name)}</b><br><small>${escapeHtml(item.generic_name||'')} ${escapeHtml(item.strength||'')}${item.active?'':' · Inactive'}</small></td><td>${escapeHtml(item.barcode||'-')}</td><td>${escapeHtml(item.dosage_form||'-')}</td><td><input class="catalog-price" data-price="buying" type="number" min="0" step="0.01" value="${item.purchase_price??''}" aria-label="Buying price for ${escapeHtml(item.name)}" disabled></td><td><input class="catalog-price" data-price="selling" type="number" min="0" step="0.01" value="${Number(item.selling_price)}" aria-label="Selling price for ${escapeHtml(item.name)}" disabled></td><td>${stockQuantity(item)}</td><td>${item.reorder_level}</td><td>${item.prescription_required?'Yes':'No'}</td><td>${item.controlled_medicine?'Yes':'No'}</td><td>${item.active?`<button class="btn secondary" type="button" data-edit-prices="${escapeHtml(item.id)}">Edit prices</button>`:`<button class="btn secondary" type="button" data-restore="${escapeHtml(item.id)}">Restore</button><button class="btn danger" type="button" data-delete-inactive="${escapeHtml(item.id)}">Delete forever</button>`}</td></tr>`).join('')||'<tr><td colspan="10">No medicines found.</td></tr>';
   rows.querySelectorAll('[data-edit-prices]').forEach(button=>button.addEventListener('click',()=>{
     const row=button.closest('[data-medicine-row]');
     row.querySelectorAll('[data-price]').forEach(input=>{input.disabled=false});
@@ -65,6 +66,14 @@ function render(){
     const {error}=await supabase.from('medicines').update({active:true}).eq('id',button.dataset.restore);
     if(error){catalogMsg.textContent=`Medicine could not be restored: ${error.message}`;button.disabled=false;return}
     await load();catalogMsg.textContent='Medicine restored.';
+  }));
+  rows.querySelectorAll('[data-delete-inactive]').forEach(button=>button.addEventListener('click',async()=>{
+    const medicine=medicines.find(item=>item.id===button.dataset.deleteInactive);if(!medicine)return;
+    if(!confirm(`Permanently delete ${medicine.name}? This is only allowed when it has no stock or transaction history.`))return;
+    button.disabled=true;catalogMsg.textContent='Deleting inactive medicine…';
+    const {error}=await supabase.rpc('admin_permanently_delete_inactive_medicine',{p_medicine_id:medicine.id});
+    if(error){catalogMsg.textContent=`Medicine was not deleted: ${error.message}`;button.disabled=false;return}
+    await load();catalogMsg.textContent=`${medicine.name} permanently deleted.`;
   }));
 }
 form.onsubmit=async event=>{

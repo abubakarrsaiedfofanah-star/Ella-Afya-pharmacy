@@ -7,6 +7,26 @@ const money=value=>`KSh ${Number(value||0).toLocaleString(undefined,{minimumFrac
 let loading=false,reloadQueued=false;
 let statementRows=[];
 
+const soldMedicineReport=document.createElement('section');
+soldMedicineReport.className='card sold-medicine-report';
+soldMedicineReport.innerHTML='<h2>Medicines sold</h2><p class="muted">Review completed medicine sales for any date range.</p><div class="toolbar"><label>From <input id="soldFrom" type="date"></label><label>To <input id="soldTo" type="date"></label><button class="btn secondary" id="loadSoldMedicines" type="button">Show sold medicines</button></div><p id="soldSummary" role="status" aria-live="polite"></p><div class="table-wrap"><table class="table"><thead><tr><th>Medicine</th><th>Units sold</th><th>Completed sales</th><th>Sales value</th></tr></thead><tbody id="soldMedicineRows"><tr><td colspan="4">Choose a date range.</td></tr></tbody></table></div>';
+document.querySelector('.claim-panel')?.before(soldMedicineReport);
+const soldFrom=soldMedicineReport.querySelector('#soldFrom'),soldTo=soldMedicineReport.querySelector('#soldTo'),soldSummary=soldMedicineReport.querySelector('#soldSummary'),soldRows=soldMedicineReport.querySelector('#soldMedicineRows'),soldButton=soldMedicineReport.querySelector('#loadSoldMedicines');
+const dateInputValue=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+const todayForSoldReport=new Date();soldTo.value=dateInputValue(todayForSoldReport);soldFrom.value=dateInputValue(new Date(todayForSoldReport.getFullYear(),todayForSoldReport.getMonth(),1));
+async function loadSoldMedicineReport(){
+  if(!soldFrom.value||!soldTo.value||soldFrom.value>soldTo.value){soldSummary.textContent='Choose a valid date range.';return}
+  soldButton.disabled=true;soldSummary.textContent='Loading sold medicines…';
+  const {data,error}=await supabase.rpc('admin_sold_medicines',{p_from:soldFrom.value,p_to:soldTo.value});
+  soldButton.disabled=false;
+  if(error){soldSummary.textContent=`Sold medicines could not be loaded: ${error.message}`;return}
+  const rows=data?.rows||[];
+  soldSummary.textContent=`${Number(data?.units_sold||0).toLocaleString()} units across ${Number(data?.sales_count||0).toLocaleString()} completed sales · ${money(data?.revenue)} total value`;
+  soldRows.innerHTML=rows.map(item=>`<tr><td><strong>${esc(item.name)}</strong>${item.strength?`<br><small>${esc(item.strength)}</small>`:''}</td><td>${Number(item.units_sold||0).toLocaleString()}</td><td>${Number(item.sales_count||0).toLocaleString()}</td><td>${money(item.revenue)}</td></tr>`).join('')||'<tr><td colspan="4">No completed medicine sales in this date range.</td></tr>';
+}
+soldButton.addEventListener('click',loadSoldMedicineReport);
+loadSoldMedicineReport();
+
 function parseCsv(text){
   const rows=[];let row=[],cell='',quoted=false;
   for(let i=0;i<text.length;i++){

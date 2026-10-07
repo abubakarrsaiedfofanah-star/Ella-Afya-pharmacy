@@ -186,7 +186,7 @@ function updatePaymentFields(){
   $('#amountLabel').textContent=isMpesa&&activeSaleId?'Sale amount to verify':'Sale amount';
   if(!isMpesa)$('#amountLabel').textContent=$('#method').value==='cash'?'Cash tendered':'Payment amount';
   $('#paymentAmount').placeholder=$('#method').value==='cash'?'Enter cash received':'Enter amount received';
-  $('#manualPaymentHint').textContent=isMpesa?'Enter the receipt code. The seller records this payment immediately; it is marked seller reported, not Safaricom verified.':$('#method').value==='cash'?'Enter the cash received.':'Enter the amount received.';
+  $('#manualPaymentHint').textContent=isMpesa?'Enter the M-Pesa receipt code.':$('#method').value==='cash'?'Enter the cash received.':'Enter the amount received.';
   $('#manualPaymentHint').hidden=false;
   $('#checkout').textContent=isMpesa?(activeSaleId?'Record M-Pesa payment':'Start M-Pesa sale'):activeSaleId?'Record payment':'Continue to payment';
 }
@@ -254,7 +254,7 @@ $('#checkout').addEventListener('click',async()=>{
     $('#tillAmount').textContent=money(sale.total_amount);
     $('#method').disabled=true;
     button.disabled=false;updatePaymentFields();
-    message.textContent=`Sale ${sale.sale_number} is ready for ${money(sale.total_amount)}. After receiving payment to PayBill ${configuredPaybillNumber}, account ${configuredPaybillAccountNumber}, enter the customer's receipt code. Recording it completes the sale without Admin approval; the code is marked seller reported.`;
+    message.textContent=`${sale.sale_number}: ${money(sale.total_amount)} due. Enter the customer's M-Pesa receipt code after payment.`;
     return;
   }
   if(method==='mpesa'){
@@ -283,7 +283,7 @@ $('#checkout').addEventListener('click',async()=>{
     return;
   }
   const completedSaleId=activeSaleId;
-  message.textContent=method==='cash'&&changeDue>0?`Sale fully paid. Return ${money(changeDue)} change. Stock update confirmed by the server.`:method==='mpesa'?'Sale fully paid. The M-Pesa code is recorded as seller reported; receipt issued and stock updated.':'Sale fully paid. Stock update confirmed by the server.';
+  message.textContent=method==='cash'&&changeDue>0?`Sale paid. Return ${money(changeDue)} change.`:'Sale paid. Receipt issued and stock updated.';
   const confirmedSale=await loadReceiptReference(completedSaleId);
   await showReceipt(completedSaleId,confirmedSale?.sale_number||completedSaleId);
   activeSaleId=null;activeSaleNumber='';savedPendingCart=[];outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#mpesaTransactionCode').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;
