@@ -44,7 +44,10 @@ async function loadReceipts() {
         ? `${claimStatus === 'pending' ? '<small>Waiting for statement match</small>' : `<a class="btn secondary" href="/seller/pages/pos/?resume=${encodeURIComponent(sale.id)}">${claimStatus === 'rejected' ? 'Retry payment' : 'Resume payment'}</a>`} <button class="btn secondary" data-id="${escapeHtml(sale.id)}" data-action="cancel_sale" type="button">Cancel</button>` : '';
     const buyer = [sale.customer_name, sale.customer_phone].filter(Boolean).map(escapeHtml).join(' · ') || '—';
     const statusLabel = sale.status === 'pending_payment' && claimStatus === 'pending' ? 'awaiting statement' : sale.status === 'pending_payment' && claimStatus === 'rejected' ? 'payment rejected' : sale.status.replaceAll('_', ' ');
-    return `<tr><td>${escapeHtml(sale.sale_number)}</td><td>${buyer}</td><td>${money(sale.total_amount)}</td><td>${escapeHtml(statusLabel)}</td><td>${escapeHtml(new Date(sale.created_at).toLocaleString())}</td><td class="no-print">${actions}</td></tr>`;
+    const statusCell=sale.status==='pending_payment'
+      ? `<a class="btn secondary" href="/seller/pages/pos/?resume=${encodeURIComponent(sale.id)}">${escapeHtml(statusLabel)} · Continue</a>`
+      : escapeHtml(statusLabel);
+    return `<tr><td>${escapeHtml(sale.sale_number)}</td><td>${buyer}</td><td>${money(sale.total_amount)}</td><td>${statusCell}</td><td>${escapeHtml(new Date(sale.created_at).toLocaleString())}</td><td class="no-print">${actions}</td></tr>`;
   }).join('') || '<tr><td colspan="6" class="muted">No receipts match.</td></tr>';
   const pages = Math.max(1, Math.ceil((count || 0) / pageSize));
   $('#pageInfo').textContent = `Page ${page + 1} of ${pages} · ${count || 0} receipts`;

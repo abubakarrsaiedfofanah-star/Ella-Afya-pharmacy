@@ -35,7 +35,8 @@ function renderRecentSales(sales){
     if(sale.status==='pending_payment'){
       const resume=document.createElement('a');resume.href=`/seller/pages/pos/?resume=${encodeURIComponent(sale.id)}`;resume.textContent='Continue payment';resume.className='seller-resume-payment';details.append(resume);
     }
-    const state=document.createElement('span');state.className=`sale-state sale-state-${String(sale.status||'').replace(/[^a-z_]/g,'')}`;state.textContent=String(sale.status||'unknown').replaceAll('_',' ');
+    const state=document.createElement(sale.status==='pending_payment'?'a':'span');state.className=`sale-state sale-state-${String(sale.status||'').replace(/[^a-z_]/g,'')}`;state.textContent=String(sale.status||'unknown').replaceAll('_',' ');
+    if(sale.status==='pending_payment')state.href=`/seller/pages/pos/?resume=${encodeURIComponent(sale.id)}`;
     const amount=document.createElement('strong');amount.className='seller-activity-amount';amount.textContent=money(sale.total_amount);
     row.append(details,state,amount);host.append(row);
   }

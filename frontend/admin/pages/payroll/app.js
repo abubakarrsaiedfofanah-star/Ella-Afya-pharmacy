@@ -19,6 +19,7 @@ let historyCount = 0;
 let calculationRequest = 0;
 let calculationTimer;
 const historyPageSize = 100;
+let staffAccounts = [];
 
 function monthDate() { return $('#payMonth').value ? `${$('#payMonth').value}-01` : null; }
 function calculationArgs() {
@@ -129,13 +130,30 @@ const [{ data: staff, error: staffError }, { data: settings, error: settingsErro
 ]);
 if (staffError) formMsg.textContent = `Staff list could not be loaded: ${staffError.message}`;
 else {
+  staffAccounts = staff || [];
   $('#staff').innerHTML = '<option value="">Choose staff member</option>' + (staff || []).map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.full_name)}${person.active ? '' : ' (inactive)'}</option>`).join('');
   $('#historyStaff').innerHTML = '<option value="">All staff</option>' + (staff || []).map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.full_name)}${person.active ? '' : ' (inactive)'}</option>`).join('');
+  $('#bulkStaff').innerHTML = staffAccounts.map((person) => `<label class="bulk-staff-option"><input type="checkbox" value="${escapeHtml(person.id)}"><span>${escapeHtml(person.full_name)}${person.active ? '' : ' (inactive)'}</span></label>`).join('') || '<p class="muted">No staff accounts found.</p>';
 }
 signatureReady = !settingsError && Boolean(settings?.receipt_signature_path && settings?.receipt_signature_name);
 if (!signatureReady) formMsg.textContent = 'Save the admin receipt signature in Pharmacy Settings before recording payroll.';
 $('#payMonth').value = new Date().toISOString().slice(0,7);
 $('#method').addEventListener('change', () => { $('#reference').required = ['mpesa','bank'].includes($('#method').value); });
+function selectedBulkStaff() {
+  const selectedIds = new Set([...$('#bulkStaff').querySelectorAll('input:checked')].map((input) => input.value));
+  return staffAccounts.filter((person) => selectedIds.has(person.id));
+}
+function renderBulkRows() {
+  const selected = selectedBulkStaff();
+  $('#runBulkPayroll').disabled = !selected.length || !signatureReady;
+  if (!selected.length) { $('#bulkRows').innerHTML = '<p class="muted">Select staff members to enter their pay details.</p>'; return; }
+  $('#bulkRows').innerHTML = `<table class="table"><thead><tr><th>Staff member</th><th>Base pay</th><th>Additions</th><th>Deductions</th><th>Amount paid now</th></tr></thead><tbody>${selected.map((person) => `<tr data-bulk-staff="${escapeHtml(person.id)}"><td>${escapeHtml(person.full_name)}${person.active ? '' : ' (inactive)'}</td><td><input data-pay="base" type="number" min="0" step="0.01" value="0.00" aria-label="Base pay for ${escapeHtml(person.full_name)}"></td><td><input data-pay="additions" type="number" min="0" step="0.01" value="0.00" aria-label="Additions for ${escapeHtml(person.full_name)}"></td><td><input data-pay="deductions" type="number" min="0" step="0.01" value="0.00" aria-label="Deductions for ${escapeHtml(person.full_name)}"></td><td><input data-pay="amount" type="number" min="0.01" step="0.01" placeholder="Installment" aria-label="Amount paid now for ${escapeHtml(person.full_name)}"></td></tr>`).join('')}</tbody></table>`;
+}
+$('#bulkStaff').addEventListener('change', renderBulkRows);
+$('#selectAllStaff').addEventListener('click', () => { $('#bulkStaff').querySelectorAll('input[type="checkbox"]').forEach((input) => { input.checked = true; }); renderBulkRows(); });
+$('#clearStaffSelection').addEventListener('click', () => { $('#bulkStaff').querySelectorAll('input[type="checkbox"]').forEach((input) => { input.checked = false; }); renderBulkRows(); });
+$('#bulkMethod').addEventListener('change', () => { $('#bulkReference').required = ['mpesa','bank'].includes($('#bulkMethod').value); });
+renderBulkRows();
 for (const selector of ['#staff','#payMonth',...calcFields]) $(selector).addEventListener(selector === '#staff' ? 'change' : 'input', scheduleCalculation);
 $('#saveCalculation').addEventListener('click', async () => {
   if (!calculation || calculation.period_saved) return;
@@ -143,6 +161,71 @@ $('#saveCalculation').addEventListener('click', async () => {
   const { data, error } = await supabase.rpc('admin_save_staff_payroll_period', calculationArgs());
   if (error) { formMsg.textContent = error.message; button.disabled = false; return; }
   showCalculation(data); formMsg.textContent = 'Pay calculation saved. You can now record one or more installments.';
+});
+$('#runBulkPayroll').addEventListener('click', async () => {
+  const selected = selectedBulkStaff();
+  const month = monthDate();
+  const method = $('#bulkMethod').value;
+  const reference = $('#bulkReference').value.trim() || null;
+  const notes = $('#bulkNotes').value.trim() || null;
+  if (!signatureReady) { $('#bulkMsg').textContent = 'Save the Admin receipt signature before recording payroll.'; return; }
+  if (!month) { $('#bulkMsg').textContent = 'Choose the pay month in the form above.'; return; }
+  if (!selected.length) { $('#bulkMsg').textContent = 'Select at least one staff member.'; return; }
+  if (['mpesa','bank'].includes(method) && !reference) { $('#bulkMsg').textContent = 'Enter the payment reference for this method.'; return; }
+
+  const entries = selected.map((person) => {
+    const row = [...$('#bulkRows').querySelectorAll('[data-bulk-staff]')].find((item) => item.dataset.bulkStaff === person.id);
+    const field = (name) => row?.querySelector(`[data-pay="${name}"]`)?.value ?? '';
+    return { person, base: Number(field('base')), additions: Number(field('additions')), deductions: Number(field('deductions')), amount: Number(field('amount')) };
+  });
+  const invalid = entries.find((entry) => !Number.isFinite(entry.base) || !Number.isFinite(entry.additions) || !Number.isFinite(entry.deductions) || !Number.isFinite(entry.amount) || Math.min(entry.base,entry.additions,entry.deductions)<0 || entry.amount<=0 || entry.base+entry.additions<entry.deductions);
+  if (invalid) { $('#bulkMsg').textContent = `Enter valid pay figures and a payment greater than zero for ${invalid.person.full_name}.`; return; }
+  if (entries.some((entry) => [entry.base,entry.additions,entry.deductions,entry.amount].some((value) => Number(value.toFixed(2))!==value))) { $('#bulkMsg').textContent = 'Use no more than two decimal places for pay amounts.'; return; }
+
+  const button = $('#runBulkPayroll'); button.disabled = true;
+  const prepared = [];
+  let recorded = 0;
+  $('#bulkMsg').textContent = `Checking ${entries.length} staff pay calculations…`;
+  try {
+    for (const entry of entries) {
+      const args = { p_staff_id: entry.person.id, p_pay_month: month, p_base_pay: entry.base, p_additions: entry.additions, p_deductions: entry.deductions };
+      const preview = await supabase.rpc('admin_calculate_staff_payroll', args);
+      if (preview.error) throw new Error(`${entry.person.full_name}: ${preview.error.message}`);
+      let period = preview.data;
+      if (period.period_saved) {
+        if (Number(period.base_pay)!==entry.base || Number(period.additions)!==entry.additions || Number(period.deductions)!==entry.deductions) throw new Error(`${entry.person.full_name} already has different saved pay figures for this month. Use the individual payroll form to review them.`);
+      } else {
+        const saved = await supabase.rpc('admin_save_staff_payroll_period', args);
+        if (saved.error) throw new Error(`${entry.person.full_name}: ${saved.error.message}`);
+        period = saved.data;
+      }
+      if (entry.amount > Number(period.balance||0)) throw new Error(`${entry.person.full_name}: amount exceeds the remaining net pay balance (${money(period.balance,period.currency_code)}).`);
+      prepared.push({ ...entry, period });
+    }
+
+    for (const entry of prepared) {
+      $('#bulkMsg').textContent = `Recording payment ${recorded+1} of ${prepared.length}…`;
+      const result = await supabase.rpc('admin_record_staff_payroll', {
+        p_staff_id: entry.person.id, p_pay_month: month, p_base_pay: entry.base,
+        p_additions: entry.additions, p_deductions: entry.deductions, p_amount_paid: entry.amount,
+        p_payment_method: method, p_payment_reference: reference,
+        p_notes: notes ? `Bulk payroll: ${notes}` : 'Bulk payroll run',
+      });
+      if (result.error) throw new Error(`${entry.person.full_name}: ${result.error.message}`);
+      recorded++;
+    }
+    $('#bulkMsg').textContent = `Recorded payroll for ${recorded} staff member${recorded===1?'':'s'}. Individual receipts are available in Recorded payroll below.`;
+    $('#bulkNotes').value = ''; $('#bulkReference').value = '';
+    $('#bulkStaff').querySelectorAll('input[type="checkbox"]').forEach((input) => { input.checked = false; });
+    renderBulkRows();
+    await loadHistory();
+  } catch (error) {
+    $('#bulkMsg').textContent = recorded ? `Recorded payments for ${recorded} of ${entries.length} staff before an error: ${error.message} Check Recorded payroll for the saved receipts.` : error.message;
+    if (recorded) { $('#bulkStaff').querySelectorAll('input[type="checkbox"]').forEach((input) => { input.checked = false; }); renderBulkRows(); }
+    await loadHistory();
+  } finally {
+    button.disabled = !selectedBulkStaff().length || !signatureReady;
+  }
 });
 amountInput.addEventListener('input', updatePaymentButton);
 form.addEventListener('submit', async (event) => {

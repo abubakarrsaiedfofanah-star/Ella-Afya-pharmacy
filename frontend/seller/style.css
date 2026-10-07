@@ -24,6 +24,7 @@
 .seller-activity-main small{color:var(--muted);font-size:11px}
 .seller-activity-amount{font-size:13px;white-space:nowrap}
 .sale-state{padding:5px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted);font-size:10px;font-weight:800;text-transform:capitalize;white-space:nowrap}
+.seller-activity-row a.sale-state{text-decoration:none}.seller-activity-row a.sale-state:hover{text-decoration:underline}
 .sale-state-paid{background:#e6f7ee;color:#147044}
 .sale-state-pending_payment{background:#fff5dc;color:#825b06}
 .sale-state-cancelled,.sale-state-refunded{background:#fff0ef;color:#a83232}
