@@ -32,6 +32,9 @@ function renderRecentSales(sales){
     const number=document.createElement('strong');number.textContent=sale.sale_number||'Sale';
     const time=document.createElement('small');time.textContent=new Date(sale.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
     details.append(number,time);
+    if(sale.status==='pending_payment'){
+      const resume=document.createElement('a');resume.href=`/seller/pages/pos/?resume=${encodeURIComponent(sale.id)}`;resume.textContent='Continue payment';resume.className='seller-resume-payment';details.append(resume);
+    }
     const state=document.createElement('span');state.className=`sale-state sale-state-${String(sale.status||'').replace(/[^a-z_]/g,'')}`;state.textContent=String(sale.status||'unknown').replaceAll('_',' ');
     const amount=document.createElement('strong');amount.className='seller-activity-amount';amount.textContent=money(sale.total_amount);
     row.append(details,state,amount);host.append(row);

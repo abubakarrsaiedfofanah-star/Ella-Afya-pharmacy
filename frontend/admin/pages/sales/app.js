@@ -90,11 +90,14 @@ async function load(){
   rows.innerHTML=(sales||[]).map(sale=>{
     const lines=bySale.get(sale.id)||[],payments=payBySale.get(sale.id)||[];
     const products=lines.map(item=>`${esc(item.medicines?.name||'Medicine')}${item.medicines?.strength?` ${esc(item.medicines.strength)}`:''} × ${Number(item.quantity)}`).join('<br>')||'No items';
+    const paidAmount=payments.filter(payment=>payment.status==='paid').reduce((sum,payment)=>sum+Number(payment.amount||0),0);
     const methods=[...new Set(payments.map(payment=>payment.method))].join(', ')||'Not paid';
     const sellerReported=payments.filter(payment=>payment.method==='mpesa'&&payment.verification_source==='seller_attested'&&payment.status==='paid').map(payment=>esc(payment.mpesa_receipt||'code entered'));
     const manualCodes=payments.filter(payment=>payment.method==='mpesa'&&payment.verification_source==='manual'&&payment.status==='paid').map(payment=>esc(payment.mpesa_receipt||'manual'));
     const verification=[sellerReported.length?`<small class="manual-verification">Seller reported, unverified: ${sellerReported.join(', ')}</small>`:'',manualCodes.length?`<small class="manual-verification">Manually verified M-Pesa: ${manualCodes.join(', ')}</small>`:''].join('');
-    return `<tr><td><strong>${esc(sale.sale_number)}</strong><small>${esc(new Date(sale.created_at).toLocaleString())}</small></td><td>${esc(staff.get(sale.seller_id)||'Sales staff')}</td><td>${products}</td><td>${money(sale.total_amount)}</td><td><span class="sale-status sale-${esc(sale.status)}">${esc(sale.status.replaceAll('_',' '))}</span></td><td>${esc(methods)}${verification}</td></tr>`
+    const balance=Math.max(0,Number(sale.total_amount)-paidAmount);
+    const collection=paidAmount>0?`<small>${money(paidAmount)} received${balance>0?` · ${money(balance)} remaining`:''}</small>`:'';
+    return `<tr><td><strong>${esc(sale.sale_number)}</strong><small>${esc(new Date(sale.created_at).toLocaleString())}</small></td><td>${esc(staff.get(sale.seller_id)||'Sales staff')}</td><td>${products}</td><td>${money(sale.total_amount)}</td><td><span class="sale-status sale-${esc(sale.status)}">${esc(sale.status.replaceAll('_',' '))}</span></td><td>${esc(methods)}${collection}${verification}</td></tr>`
   }).join('');
   msg.textContent=`Showing ${sales.length} latest sales. Live updates are enabled.`;
   finishLoad();
@@ -109,6 +112,7 @@ load();loadClaims();
 document.querySelector('#refreshSales').addEventListener('click',load);
 const salesRealtime=supabase.channel('admin-sales-live-updates')
   .on('postgres_changes',{event:'*',schema:'public',table:'sales'},()=>{if(loading)reloadQueued=true;else void load()})
+  .on('postgres_changes',{event:'*',schema:'public',table:'payments'},()=>{if(loading)reloadQueued=true;else void load()})
   .subscribe();
 const salesRefreshTimer=window.setInterval(load,30000);
 const claimsRefreshTimer=window.setInterval(loadClaims,10000);
