@@ -22,6 +22,9 @@ const money=value=>`KSh ${Number(value||0).toLocaleString(undefined,{minimumFrac
 const toCents=value=>Math.round(Number(value||0)*100),fromCents=value=>value/100;
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const medicineStock=medicine=>Number(Array.isArray(medicine.inventory)?medicine.inventory[0]?.quantity:medicine.inventory?.quantity)||0;
+let batchStockByMedicine=new Map();
+function indexBatchStock(){const today=new Date().toISOString().slice(0,10);batchStockByMedicine=new Map();for(const batch of batches){if(batch.expiry_date<today)continue;batchStockByMedicine.set(batch.medicine_id,(batchStockByMedicine.get(batch.medicine_id)||0)+Math.max(0,Number(batch.quantity)||0))}}
+const sellableStock=medicine=>Math.min(medicineStock(medicine),batchStockByMedicine.get(medicine.id)||0);
 const stockLimit=medicine=>medicine.min_stock==null?5:Number(medicine.min_stock);
 const daysToExpiry=date=>Math.ceil((new Date(`${date}T00:00:00`).getTime()-new Date(`${new Date().toISOString().slice(0,10)}T00:00:00`).getTime())/86400000);
 
@@ -34,7 +37,7 @@ async function load(){
     supabase.from('pharmacy_settings').select('paybill_number,paybill_account_number,till_number,receipt_signature_path,receipt_signature_name').maybeSingle()
   ]);
   if(medicineError){message.textContent=medicineError.message;return}
-  medicines=medicineData||[];batches=batchData||[];if(!activeSaleId)cart=cart.map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return current?{...line,price:Number(current.selling_price)}:line});configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();receiptSignatureConfigured=Boolean(settings?.receipt_signature_path&&settings?.receipt_signature_name);$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';$('#tillReference').textContent=configuredPaybillAccountNumber||'Ask the admin to configure the PayBill account';
+  medicines=medicineData||[];batches=batchData||[];indexBatchStock();if(!activeSaleId)cart=cart.map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return current?{...line,price:Number(current.selling_price)}:line});configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();receiptSignatureConfigured=Boolean(settings?.receipt_signature_path&&settings?.receipt_signature_name);$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';$('#tillReference').textContent=configuredPaybillAccountNumber||'Ask the admin to configure the PayBill account';
   prescription.innerHTML='<option value="">No prescription</option>'+(prescriptionData||[]).map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.prescription_number)} — ${escapeHtml(item.patient_name)}</option>`).join('');
   const params=new URLSearchParams(location.search),preset=params.get('prescription');if(preset)prescription.value=preset;
   const resumeId=params.get('resume');
@@ -70,7 +73,7 @@ async function refreshCatalog(){
     const nextSignature=JSON.stringify([nextMedicines,nextBatches]);
     if(nextSignature===catalogSignature)return;
     catalogSignature=nextSignature;
-    medicines=nextMedicines;batches=nextBatches;
+    medicines=nextMedicines;batches=nextBatches;indexBatchStock();
     if(!activeSaleId)cart=cart.filter(line=>medicines.some(medicine=>medicine.id===line.id)).map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return {...line,name:current.name,price:Number(current.selling_price)}});
     renderMedicines();renderCart();
   }finally{catalogRefreshInProgress=false}
@@ -78,11 +81,11 @@ async function refreshCatalog(){
 
 function addMedicine(id){
   const medicine=medicines.find(item=>item.id===id);if(!medicine)return;
-  if(medicineStock(medicine)<=0){message.textContent='This medicine is out of stock.';return}
+  if(sellableStock(medicine)<=0){message.textContent='No unexpired batch stock is available for this medicine.';return}
   const line=cart.find(item=>item.id===medicine.id);
   if(line){
     const selected=line.batch_id&&batches.find(batch=>batch.id===line.batch_id);
-    const available=selected?Math.min(medicineStock(medicine),Number(selected.quantity)||0):medicineStock(medicine);
+    const available=selected?Math.min(medicineStock(medicine),Number(selected.quantity)||0):sellableStock(medicine);
     if(line.quantity>=available){message.textContent='Quantity cannot exceed available stock in the selected batch.';return}
     line.quantity+=1;
   }
@@ -93,11 +96,11 @@ function addMedicine(id){
 function renderMedicines(){
   const term=$('#search').value.trim().toLowerCase();
   const allMatches=medicines.filter(item=>`${item.name} ${item.generic_name||''} ${item.brand||''} ${item.barcode||''} ${item.strength||''}`.toLowerCase().includes(term));
-  const availableMatches=allMatches.filter(item=>medicineStock(item)>0);
+  const availableMatches=allMatches.filter(item=>sellableStock(item)>0);
   const matches=availableMatches.slice(0,60);
   $('#medicineResultsMeta').textContent=allMatches.length===0?'Search by name or scan a barcode.':availableMatches.length===0?'No matching medicines are currently in stock.':availableMatches.length>60?`Showing 60 of ${availableMatches.length} in-stock medicines. Refine your search to find a specific item.`:`${availableMatches.length} in-stock medicine${availableMatches.length===1?'':'s'} found`;
   list.innerHTML=matches.map(item=>{
-    const stock=medicineStock(item),flags=[item.prescription_required?'Prescription required':'',item.controlled_medicine?'Controlled medicine':''].filter(Boolean).join(' · '),low=stock>0&&stock<=stockLimit(item);
+    const stock=sellableStock(item),flags=[item.prescription_required?'Prescription required':'',item.controlled_medicine?'Controlled medicine':''].filter(Boolean).join(' · '),low=stock>0&&stock<=stockLimit(item);
     const nearExpiry=batches.some(batch=>batch.medicine_id===item.id&&daysToExpiry(batch.expiry_date)<=90);
     const warnings=[low?'Low stock':null,nearExpiry?'Batch expires within 90 days':null].filter(Boolean).join(' · ');
     return `<article class="medicine ${low?'low-stock':''}"><span><strong>${escapeHtml(item.name)} ${escapeHtml(item.strength||'')}</strong><br><small>${money(item.selling_price)} · Stock ${stock}${warnings?` · <span class="stock-warning">${escapeHtml(warnings)}</span>`:''}${flags?` · ${escapeHtml(flags)}`:''}</small></span><button class="btn secondary" type="button" data-add="${escapeHtml(item.id)}" ${stock<=0?'disabled':''} aria-label="Add ${escapeHtml(item.name)} to sale">Add</button></article>`;
@@ -108,12 +111,13 @@ function renderMedicines(){
 function renderCart(){
   cartElement.innerHTML=cart.map((item,index)=>{
     const available=batches.filter(batch=>batch.medicine_id===item.id);
-    const medicine=medicines.find(m=>m.id===item.id),stock=medicine?medicineStock(medicine):0;
+    const medicine=medicines.find(m=>m.id===item.id),stock=medicine?sellableStock(medicine):0;
     return `<div class="cart-line"><div><strong>${escapeHtml(item.name)}</strong><small>${money(item.price)} each · ${stock} available</small></div><div class="quantity-control"><button type="button" data-quantity="-1" data-index="${index}" aria-label="Decrease ${escapeHtml(item.name)} quantity">−</button><output>${item.quantity}</output><button type="button" data-quantity="1" data-index="${index}" aria-label="Increase ${escapeHtml(item.name)} quantity" ${item.quantity>=stock?'disabled':''}>+</button><button type="button" class="remove-line" data-remove="${index}" aria-label="Remove ${escapeHtml(item.name)} from cart">Remove</button></div><select data-batch="${index}" aria-label="Select batch for ${escapeHtml(item.name)}"><option value="">Auto FEFO</option>${available.map(batch=>`<option value="${escapeHtml(batch.id)}" ${item.batch_id===batch.id?'selected':''}>${escapeHtml(batch.batch_number)} · exp ${escapeHtml(batch.expiry_date)} · ${batch.quantity} left</option>`).join('')}</select><strong class="line-total">${money(item.price*item.quantity)}</strong></div>`;
   }).join('')||'<p class="muted empty-cart">Cart is empty. Search or scan to add a medicine.</p>';
   const cartAvailable=(item)=>{
     const selected=item.batch_id&&batches.find(batch=>batch.id===item.batch_id);
-    return selected?Math.min(medicineStock(medicines.find(m=>m.id===item.id)||{}),Number(selected.quantity)||0):medicineStock(medicines.find(m=>m.id===item.id)||{});
+    const medicine=medicines.find(m=>m.id===item.id)||{};
+    return selected?Math.min(medicineStock(medicine),Number(selected.quantity)||0):sellableStock(medicine);
   };
   cartElement.querySelectorAll('[data-quantity]').forEach(button=>button.addEventListener('click',()=>{
     const index=Number(button.dataset.index),next=cart[index].quantity+Number(button.dataset.quantity);
@@ -158,9 +162,9 @@ function updatePaymentFields(){
   $('#amountLabel').textContent=isMpesa&&activeSaleId?'Sale amount to verify':'Sale amount';
   if(!isMpesa)$('#amountLabel').textContent=$('#method').value==='cash'?'Cash tendered':'Payment amount';
   $('#paymentAmount').placeholder=$('#method').value==='cash'?'Enter cash received':'Enter amount received';
-  $('#manualPaymentHint').textContent=isMpesa?'Enter the M-Pesa receipt code. The code is matched against imported PayBill data before the sale is completed.':$('#method').value==='cash'?'Enter the cash received.':'Enter the amount received.';
+  $('#manualPaymentHint').textContent=isMpesa?'Enter the receipt code. The seller records this payment immediately; it is marked seller reported, not Safaricom verified.':$('#method').value==='cash'?'Enter the cash received.':'Enter the amount received.';
   $('#manualPaymentHint').hidden=false;
-  $('#checkout').textContent=isMpesa?(activeSaleId?'Submit receipt code':'Create sale & PayBill details'):activeSaleId?'Record payment':'Continue to payment';
+  $('#checkout').textContent=isMpesa?(activeSaleId?'Record M-Pesa payment':'Start M-Pesa sale'):activeSaleId?'Record payment':'Continue to payment';
 }
 $('#method').addEventListener('change',updatePaymentFields);
 
@@ -212,47 +216,35 @@ $('#checkout').addEventListener('click',async()=>{
   button.disabled=true;
   const {error:buyerError}=await supabase.rpc('set_sale_customer_details',{p_sale_id:activeSaleId,p_customer_name:$('#customerName').value.trim()||null,p_customer_phone:$('#customerPhone').value.trim()||null});
   if(buyerError){button.disabled=false;message.textContent='Buyer details could not be saved. The sale remains pending; retry or contact the admin.';return}
-  if(method==='mpesa'){
+  if(method==='mpesa'&&saleJustCreated){
     const {data:sale,error:saleError}=await supabase.from('sales').select('sale_number,total_amount,status').eq('id',activeSaleId).single();
     if(saleError||!sale){button.disabled=false;message.textContent=saleError?.message||'Sale details could not be loaded.';return}
     $('#tillReference').textContent=configuredPaybillAccountNumber;
     $('#tillOrderNumber').textContent=sale.sale_number;
     $('#tillAmount').textContent=money(sale.total_amount);
-    if(saleJustCreated){
-      $('#method').disabled=true;
-      button.disabled=false;updatePaymentFields();
-      message.textContent=`Sale ${sale.sale_number} is ready. Confirm the customer paid ${money(sale.total_amount)} to PayBill ${configuredPaybillNumber}, account ${configuredPaybillAccountNumber}. Then enter the receipt code. The sale completes automatically when it matches imported PayBill data.`;
-      return;
-    }
+    $('#method').disabled=true;
+    button.disabled=false;updatePaymentFields();
+    message.textContent=`Sale ${sale.sale_number} is ready for ${money(sale.total_amount)}. After receiving payment to PayBill ${configuredPaybillNumber}, account ${configuredPaybillAccountNumber}, enter the customer's receipt code. Recording it completes the sale without Admin approval; the code is marked seller reported.`;
+    return;
+  }
+  if(method==='mpesa'){
     const transactionCode=$('#mpesaTransactionCode').value.trim().toUpperCase();
     if(!transactionCode){button.disabled=false;$('#mpesaTransactionCode').focus();message.textContent='Enter the receipt code from the customer M-Pesa confirmation message.';return}
-    const {data:claimId,error:claimError}=await supabase.rpc('submit_manual_mpesa_claim',{p_sale_id:activeSaleId,p_amount:outstanding,p_transaction_code:transactionCode});
-    button.disabled=false;
-    if(claimError){message.textContent=claimError.message;return}
-    const submittedSaleId=activeSaleId;
-    const {data:claimStatus}=await supabase.rpc('seller_manual_mpesa_claim_status',{p_sale_ids:[submittedSaleId]});
-    if(!claimStatus?.some(item=>item.claim_status==='approved'||item.claim_status==='rejected'))awaitingApprovalSaleIds=[...new Set([...awaitingApprovalSaleIds,submittedSaleId])];
-    else awaitingApprovalSaleIds=awaitingApprovalSaleIds.filter(id=>id!==submittedSaleId);
-    try{sessionStorage.setItem(pendingClaimKey,JSON.stringify(awaitingApprovalSaleIds))}catch{}
-    activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#mpesaTransactionCode').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;
-    renderCart();updatePaymentFields();await load();
-    const finalStatus=claimStatus?.find(item=>item.sale_id===submittedSaleId)?.claim_status;
-    message.textContent=finalStatus==='approved'?`Statement match confirmed for ${sale.sale_number}. Sale completed; the receipt is available in My Receipts.`:finalStatus==='rejected'?`The imported statement amount did not match ${sale.sale_number}. No receipt was issued and stock was not deducted.`:`M-Pesa code queued (claim ${String(claimId).slice(0,8)}). The sale stays pending until it matches an imported PayBill statement or an Admin reviews it.`;
-    return;
   }
   const normalizedAmount=fromCents(toCents(amount));
   const amountToRecord=method==='cash'?fromCents(Math.min(toCents(normalizedAmount),toCents(outstanding))):normalizedAmount;
   const changeDue=method==='cash'?fromCents(Math.max(0,toCents(normalizedAmount)-toCents(amountToRecord))):0;
-  const {data:remaining,error}=await supabase.rpc('add_manual_sale_payment',{p_sale_id:activeSaleId,p_method:method,p_amount:amountToRecord,p_reference:$('#reference').value.trim()||null,p_cash_tendered:method==='cash'?normalizedAmount:null});
+  const paymentReference=method==='mpesa'?$('#mpesaTransactionCode').value.trim().toUpperCase():$('#reference').value.trim()||null;
+  const {data:remaining,error}=await supabase.rpc('add_manual_sale_payment',{p_sale_id:activeSaleId,p_method:method,p_amount:method==='mpesa'?outstanding:amountToRecord,p_reference:paymentReference,p_cash_tendered:method==='cash'?normalizedAmount:null});
   button.disabled=false;
   if(error){message.textContent=error.message;return}
   outstanding=Number(remaining||0);
   if(outstanding>0){message.textContent=`Payment recorded. Remaining ${money(outstanding)}.`;renderCart();updatePaymentFields();return}
   const completedSaleId=activeSaleId;
-  message.textContent=method==='cash'&&changeDue>0?`Sale fully paid. Return ${money(changeDue)} change. Stock update confirmed by the server.`:'Sale fully paid. Stock update confirmed by the server.';
+  message.textContent=method==='cash'&&changeDue>0?`Sale fully paid. Return ${money(changeDue)} change. Stock update confirmed by the server.`:method==='mpesa'?'Sale fully paid. The M-Pesa code is recorded as seller reported; receipt issued and stock updated.':'Sale fully paid. Stock update confirmed by the server.';
   const confirmedSale=await loadReceiptReference(completedSaleId);
   await showReceipt(completedSaleId,confirmedSale?.sale_number||completedSaleId);
-  activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;
+  activeSaleId=null;outstanding=0;cart=[];prescription.value='';$('#reference').value='';$('#mpesaTransactionCode').value='';$('#customerName').value='';$('#customerPhone').value='';$('#method').disabled=false;
   renderCart();updatePaymentFields();await load();
 });
 

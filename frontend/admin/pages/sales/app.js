@@ -66,8 +66,8 @@ importStatementButton.addEventListener('click',async()=>{
 async function loadClaims(){
   const {data,error}=await supabase.rpc('admin_manual_mpesa_claims');
   if(error){claimMsg.textContent='Manual M-Pesa claims could not be loaded. Apply migrations 039 through 041, then refresh.';return}
-  claimRows.innerHTML=(data||[]).map(claim=>`<tr><td>${esc(claim.sale_number)}</td><td>${esc(claim.seller_name)}</td><td>${money(claim.amount)}</td><td><strong>${esc(claim.transaction_code)}</strong></td><td>${esc(new Date(claim.submitted_at).toLocaleString())}</td><td><button class="btn" data-claim="${esc(claim.claim_id)}" data-approve="true" type="button">Approve payment</button> <button class="btn secondary" data-claim="${esc(claim.claim_id)}" data-approve="false" type="button">Reject</button></td></tr>`).join('')||'<tr><td colspan="6">No M-Pesa claims are waiting for review.</td></tr>';
-  claimMsg.textContent=(data||[]).length?`${data.length} manual M-Pesa payment(s) are waiting. Check each code and amount against the M-Pesa message or statement before approval.`:'';
+  claimRows.innerHTML=(data||[]).map(claim=>`<tr><td>${esc(claim.sale_number)}</td><td>${esc(claim.seller_name)}</td><td>${money(claim.amount)}</td><td><strong>${esc(claim.transaction_code)}</strong></td><td>${esc(new Date(claim.submitted_at).toLocaleString())}</td><td>Awaiting statement</td></tr>`).join('')||'<tr><td colspan="6">No older claims are waiting for a statement match.</td></tr>';
+  claimMsg.textContent=(data||[]).length?`${data.length} older claim(s) can be reconciled by importing an official PayBill statement. New sales do not wait for Admin.`:'';
 }
 
 async function load(){
@@ -91,8 +91,9 @@ async function load(){
     const lines=bySale.get(sale.id)||[],payments=payBySale.get(sale.id)||[];
     const products=lines.map(item=>`${esc(item.medicines?.name||'Medicine')}${item.medicines?.strength?` ${esc(item.medicines.strength)}`:''} × ${Number(item.quantity)}`).join('<br>')||'No items';
     const methods=[...new Set(payments.map(payment=>payment.method))].join(', ')||'Not paid';
-    const manualCodes=payments.filter(payment=>payment.verification_source==='manual'&&payment.status==='paid').map(payment=>esc(payment.mpesa_receipt||'manual'));
-    const verification=manualCodes.length?`<small class="manual-verification">Manual M-Pesa: ${manualCodes.join(', ')}</small>`:'';
+    const sellerReported=payments.filter(payment=>payment.method==='mpesa'&&payment.verification_source==='seller_attested'&&payment.status==='paid').map(payment=>esc(payment.mpesa_receipt||'code entered'));
+    const manualCodes=payments.filter(payment=>payment.method==='mpesa'&&payment.verification_source==='manual'&&payment.status==='paid').map(payment=>esc(payment.mpesa_receipt||'manual'));
+    const verification=[sellerReported.length?`<small class="manual-verification">Seller reported, unverified: ${sellerReported.join(', ')}</small>`:'',manualCodes.length?`<small class="manual-verification">Manually verified M-Pesa: ${manualCodes.join(', ')}</small>`:''].join('');
     return `<tr><td><strong>${esc(sale.sale_number)}</strong><small>${esc(new Date(sale.created_at).toLocaleString())}</small></td><td>${esc(staff.get(sale.seller_id)||'Sales staff')}</td><td>${products}</td><td>${money(sale.total_amount)}</td><td><span class="sale-status sale-${esc(sale.status)}">${esc(sale.status.replaceAll('_',' '))}</span></td><td>${esc(methods)}${verification}</td></tr>`
   }).join('');
   msg.textContent=`Showing ${sales.length} latest sales. Live updates are enabled.`;
@@ -106,16 +107,6 @@ function finishLoad(){
 
 load();loadClaims();
 document.querySelector('#refreshSales').addEventListener('click',load);
-claimRows.addEventListener('click',async event=>{
-  const button=event.target.closest('[data-claim]');if(!button||button.disabled)return;
-  const approved=button.dataset.approve==='true';
-  if(approved&&!window.confirm('Have you confirmed this code and amount in the M-Pesa message or statement? Approval records the payment, completes the sale and deducts stock.'))return;
-  button.disabled=true;claimMsg.textContent=approved?'Approving payment and updating stock…':'Rejecting payment claim…';
-  const {error}=await supabase.rpc('admin_review_manual_mpesa_claim',{p_claim_id:button.dataset.claim,p_approve:approved});
-  if(error){claimMsg.textContent=error.message;button.disabled=false;return}
-  claimMsg.textContent=approved?'Payment approved. Sale completed and stock updated.':'Payment claim rejected. The sale remains pending.';
-  await Promise.all([load(),loadClaims()]);
-});
 const salesRealtime=supabase.channel('admin-sales-live-updates')
   .on('postgres_changes',{event:'*',schema:'public',table:'sales'},()=>{if(loading)reloadQueued=true;else void load()})
   .subscribe();

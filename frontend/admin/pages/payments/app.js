@@ -61,7 +61,7 @@ function renderTransactions() {
 		<td><span class="pill ${transaction.status === 'paid' ? 'status-ok' : transaction.status === 'failed' || transaction.status === 'refunded' ? 'status-off' : ''}">${escapeHtml(transaction.status)}</span></td>
 		<td>${escapeHtml(transaction.provider_reference || '—')}</td>
 		<td>${escapeHtml(transaction.mpesa_receipt || '—')}</td>
-		<td>${escapeHtml(transaction.verified_by_name || '—')}<br><small>${escapeHtml(transaction.verification_source || 'unknown')} · ${transaction.confirmed_at ? escapeHtml(new Date(transaction.confirmed_at).toLocaleString()) : 'not confirmed'}</small></td>
+		<td>${transaction.verification_source==='seller_attested'?'Seller reported — not Safaricom verified':escapeHtml(transaction.verified_by_name || '—')}<br><small>${escapeHtml(transaction.verification_source || 'unknown')} · ${transaction.confirmed_at ? escapeHtml(new Date(transaction.confirmed_at).toLocaleString()) : 'not confirmed'}</small></td>
 	</tr>`).join('');
 }
 
