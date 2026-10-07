@@ -24,7 +24,10 @@ const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;'
 const medicineStock=medicine=>Number(Array.isArray(medicine.inventory)?medicine.inventory[0]?.quantity:medicine.inventory?.quantity)||0;
 let batchStockByMedicine=new Map();
 function indexBatchStock(){const today=new Date().toISOString().slice(0,10);batchStockByMedicine=new Map();for(const batch of batches){if(batch.expiry_date<today)continue;batchStockByMedicine.set(batch.medicine_id,(batchStockByMedicine.get(batch.medicine_id)||0)+Math.max(0,Number(batch.quantity)||0))}}
-const sellableStock=medicine=>Math.min(medicineStock(medicine),batchStockByMedicine.get(medicine.id)||0);
+// Inventory quantity remains the checkout authority while legacy stock is
+// being reconciled into batches. The payment RPC consumes batches when known
+// and records any remaining legacy quantity as an unbatched stock movement.
+const sellableStock=medicine=>medicineStock(medicine);
 const stockLimit=medicine=>medicine.min_stock==null?5:Number(medicine.min_stock);
 const daysToExpiry=date=>Math.ceil((new Date(`${date}T00:00:00`).getTime()-new Date(`${new Date().toISOString().slice(0,10)}T00:00:00`).getTime())/86400000);
 
