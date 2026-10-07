@@ -237,7 +237,13 @@ $('#checkout').addEventListener('click',async()=>{
   const paymentReference=method==='mpesa'?$('#mpesaTransactionCode').value.trim().toUpperCase():$('#reference').value.trim()||null;
   const {data:remaining,error}=await supabase.rpc('add_manual_sale_payment',{p_sale_id:activeSaleId,p_method:method,p_amount:method==='mpesa'?outstanding:amountToRecord,p_reference:paymentReference,p_cash_tendered:method==='cash'?normalizedAmount:null});
   button.disabled=false;
-  if(error){message.textContent=error.message;return}
+  if(error){
+    const detail=String(error.message||'');
+    message.textContent=/insufficient unexpired batch stock/i.test(detail)
+      ?`${detail}. No payment was recorded. Ask the Admin to enter the real batch number and expiry for this stock, then retry.`
+      :detail;
+    return;
+  }
   outstanding=Number(remaining||0);
   if(outstanding>0){message.textContent=`Payment recorded. Remaining ${money(outstanding)}.`;renderCart();updatePaymentFields();return}
   const completedSaleId=activeSaleId;
