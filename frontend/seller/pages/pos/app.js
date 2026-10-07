@@ -3,7 +3,6 @@ import {requireUser} from '../../../shared/js/auth.js';
 
 await requireUser(['seller']);
 let medicines=[];
-let batches=[];
 let cart=[];
 let activeSaleId=null;
 const pendingClaimKey='pharmacy-pending-mpesa-claims';
@@ -22,36 +21,32 @@ const money=value=>`KSh ${Number(value||0).toLocaleString(undefined,{minimumFrac
 const toCents=value=>Math.round(Number(value||0)*100),fromCents=value=>value/100;
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const medicineStock=medicine=>Number(Array.isArray(medicine.inventory)?medicine.inventory[0]?.quantity:medicine.inventory?.quantity)||0;
-let batchStockByMedicine=new Map();
-function indexBatchStock(){const today=new Date().toISOString().slice(0,10);batchStockByMedicine=new Map();for(const batch of batches){if(batch.expiry_date<today)continue;batchStockByMedicine.set(batch.medicine_id,(batchStockByMedicine.get(batch.medicine_id)||0)+Math.max(0,Number(batch.quantity)||0))}}
 // Inventory quantity remains the checkout authority while legacy stock is
-// being reconciled into batches. The payment RPC consumes batches when known
-// and records any remaining legacy quantity as an unbatched stock movement.
+// being reconciled into batches. Sellers use inventory counts only; payment
+// allocation and expiry details remain server-side for Admin reporting.
 const sellableStock=medicine=>medicineStock(medicine);
 const stockLimit=medicine=>medicine.min_stock==null?5:Number(medicine.min_stock);
-const daysToExpiry=date=>Math.ceil((new Date(`${date}T00:00:00`).getTime()-new Date(`${new Date().toISOString().slice(0,10)}T00:00:00`).getTime())/86400000);
 
 async function load(){
   message.textContent='';
-  const [{data:medicineData,error:medicineError},{data:batchData},{data:prescriptionData},{data:settings}]=await Promise.all([
+  const [{data:medicineData,error:medicineError},{data:prescriptionData},{data:settings}]=await Promise.all([
     supabase.from('medicines').select('id,name,generic_name,brand,barcode,strength,selling_price,min_stock,prescription_required,controlled_medicine,inventory(quantity)').eq('active',true).order('name'),
-    supabase.from('batches').select('id,medicine_id,batch_number,expiry_date,quantity').gte('expiry_date',new Date().toISOString().slice(0,10)).gt('quantity',0).order('expiry_date'),
     supabase.from('prescriptions').select('id,prescription_number,patient_name,status').in('status',['verified','dispensing','dispensed']).order('created_at',{ascending:false}).limit(30),
     supabase.from('pharmacy_settings').select('paybill_number,paybill_account_number,till_number,receipt_signature_path,receipt_signature_name').maybeSingle()
   ]);
   if(medicineError){message.textContent=medicineError.message;return}
-  medicines=medicineData||[];batches=batchData||[];indexBatchStock();if(!activeSaleId)cart=cart.map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return current?{...line,price:Number(current.selling_price)}:line});configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();receiptSignatureConfigured=Boolean(settings?.receipt_signature_path&&settings?.receipt_signature_name);$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';$('#tillReference').textContent=configuredPaybillAccountNumber||'Ask the admin to configure the PayBill account';
+  medicines=medicineData||[];if(!activeSaleId)cart=cart.map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return current?{...line,price:Number(current.selling_price)}:line});configuredPaybillNumber=String(settings?.paybill_number||settings?.till_number||'').trim();configuredPaybillAccountNumber=String(settings?.paybill_account_number||'').trim();receiptSignatureConfigured=Boolean(settings?.receipt_signature_path&&settings?.receipt_signature_name);$('#tillNumber').textContent=configuredPaybillNumber||'Ask the admin to configure the PayBill number';$('#tillReference').textContent=configuredPaybillAccountNumber||'Ask the admin to configure the PayBill account';
   prescription.innerHTML='<option value="">No prescription</option>'+(prescriptionData||[]).map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.prescription_number)} — ${escapeHtml(item.patient_name)}</option>`).join('');
   const params=new URLSearchParams(location.search),preset=params.get('prescription');if(preset)prescription.value=preset;
   const resumeId=params.get('resume');
   if(resumeId&&!activeSaleId){
     const [{data:pendingSale},{data:saleLines},{data:claimStatuses}]=await Promise.all([
       supabase.from('sales').select('id,sale_number,total_amount,status,customer_name,customer_phone').eq('id',resumeId).maybeSingle(),
-      supabase.from('sale_items').select('medicine_id,quantity,batch_id,unit_price,medicines(name)').eq('sale_id',resumeId),
+      supabase.from('sale_items').select('medicine_id,quantity,unit_price,medicines(name)').eq('sale_id',resumeId),
       supabase.rpc('seller_manual_mpesa_claim_status',{p_sale_ids:[resumeId]})
     ]);
     if(pendingSale?.status==='pending_payment'&&!claimStatuses?.some(item=>item.claim_status==='pending')){
-      activeSaleId=pendingSale.id;outstanding=Number(pendingSale.total_amount);cart=(saleLines||[]).map(item=>({id:item.medicine_id,name:item.medicines?.name||'Medicine',price:Number(item.unit_price),quantity:Number(item.quantity),batch_id:item.batch_id}));
+      activeSaleId=pendingSale.id;outstanding=Number(pendingSale.total_amount);cart=(saleLines||[]).map(item=>({id:item.medicine_id,name:item.medicines?.name||'Medicine',price:Number(item.unit_price),quantity:Number(item.quantity)}));
       $('#customerName').value=pendingSale.customer_name||'';$('#customerPhone').value=pendingSale.customer_phone||'';$('#method').value='mpesa';$('#method').disabled=true;
       $('#tillOrderNumber').textContent=pendingSale.sale_number;$('#tillAmount').textContent=money(pendingSale.total_amount);updatePaymentFields();
       message.textContent=`Resumed ${pendingSale.sale_number}. Enter a new receipt code to retry payment.`;
@@ -67,16 +62,13 @@ async function refreshCatalog(){
   if(catalogRefreshInProgress||document.visibilityState!=='visible')return;
   catalogRefreshInProgress=true;
   try{
-    const [{data:medicineData,error:medicineError},{data:batchData}]=await Promise.all([
-      supabase.from('medicines').select('id,name,generic_name,brand,barcode,strength,selling_price,min_stock,prescription_required,controlled_medicine,inventory(quantity)').eq('active',true).order('name'),
-      supabase.from('batches').select('id,medicine_id,batch_number,expiry_date,quantity').gte('expiry_date',new Date().toISOString().slice(0,10)).gt('quantity',0).order('expiry_date')
-    ]);
+    const {data:medicineData,error:medicineError}=await supabase.from('medicines').select('id,name,generic_name,brand,barcode,strength,selling_price,min_stock,prescription_required,controlled_medicine,inventory(quantity)').eq('active',true).order('name');
     if(medicineError)return;
-    const nextMedicines=medicineData||[],nextBatches=batchData||[];
-    const nextSignature=JSON.stringify([nextMedicines,nextBatches]);
+    const nextMedicines=medicineData||[];
+    const nextSignature=JSON.stringify(nextMedicines);
     if(nextSignature===catalogSignature)return;
     catalogSignature=nextSignature;
-    medicines=nextMedicines;batches=nextBatches;indexBatchStock();
+    medicines=nextMedicines;
     if(!activeSaleId)cart=cart.filter(line=>medicines.some(medicine=>medicine.id===line.id)).map(line=>{const current=medicines.find(medicine=>medicine.id===line.id);return {...line,name:current.name,price:Number(current.selling_price)}});
     renderMedicines();renderCart();
   }finally{catalogRefreshInProgress=false}
@@ -84,15 +76,14 @@ async function refreshCatalog(){
 
 function addMedicine(id){
   const medicine=medicines.find(item=>item.id===id);if(!medicine)return;
-  if(sellableStock(medicine)<=0){message.textContent='No unexpired batch stock is available for this medicine.';return}
+  if(sellableStock(medicine)<=0){message.textContent='No inventory is available for this medicine.';return}
   const line=cart.find(item=>item.id===medicine.id);
   if(line){
-    const selected=line.batch_id&&batches.find(batch=>batch.id===line.batch_id);
-    const available=selected?Math.min(medicineStock(medicine),Number(selected.quantity)||0):sellableStock(medicine);
-    if(line.quantity>=available){message.textContent='Quantity cannot exceed available stock in the selected batch.';return}
+    const available=sellableStock(medicine);
+    if(line.quantity>=available){message.textContent='Quantity cannot exceed available stock.';return}
     line.quantity+=1;
   }
-  else cart.push({id:medicine.id,name:medicine.name,price:Number(medicine.selling_price),quantity:1,batch_id:null});
+  else cart.push({id:medicine.id,name:medicine.name,price:Number(medicine.selling_price),quantity:1});
   message.textContent='';renderCart();
 }
 
@@ -104,8 +95,7 @@ function renderMedicines(){
   $('#medicineResultsMeta').textContent=allMatches.length===0?'Search by name or scan a barcode.':availableMatches.length===0?'No matching medicines are currently in stock.':availableMatches.length>60?`Showing 60 of ${availableMatches.length} in-stock medicines. Refine your search to find a specific item.`:`${availableMatches.length} in-stock medicine${availableMatches.length===1?'':'s'} found`;
   list.innerHTML=matches.map(item=>{
     const stock=sellableStock(item),flags=[item.prescription_required?'Prescription required':'',item.controlled_medicine?'Controlled medicine':''].filter(Boolean).join(' · '),low=stock>0&&stock<=stockLimit(item);
-    const nearExpiry=batches.some(batch=>batch.medicine_id===item.id&&daysToExpiry(batch.expiry_date)<=90);
-    const warnings=[low?'Low stock':null,nearExpiry?'Batch expires within 90 days':null].filter(Boolean).join(' · ');
+    const warnings=low?'Low stock':'';
     return `<article class="medicine ${low?'low-stock':''}"><span><strong>${escapeHtml(item.name)} ${escapeHtml(item.strength||'')}</strong><br><small>${money(item.selling_price)} · Stock ${stock}${warnings?` · <span class="stock-warning">${escapeHtml(warnings)}</span>`:''}${flags?` · ${escapeHtml(flags)}`:''}</small></span><button class="btn secondary" type="button" data-add="${escapeHtml(item.id)}" ${stock<=0?'disabled':''} aria-label="Add ${escapeHtml(item.name)} to sale">Add</button></article>`;
   }).join('')||'<p class="muted empty-results">No matching medicines.</p>';
   list.querySelectorAll('[data-add]').forEach(button=>button.addEventListener('click',()=>addMedicine(button.dataset.add)));
@@ -113,27 +103,20 @@ function renderMedicines(){
 
 function renderCart(){
   cartElement.innerHTML=cart.map((item,index)=>{
-    const available=batches.filter(batch=>batch.medicine_id===item.id);
     const medicine=medicines.find(m=>m.id===item.id),stock=medicine?sellableStock(medicine):0;
-    return `<div class="cart-line"><div><strong>${escapeHtml(item.name)}</strong><small>${money(item.price)} each · ${stock} available</small></div><div class="quantity-control"><button type="button" data-quantity="-1" data-index="${index}" aria-label="Decrease ${escapeHtml(item.name)} quantity">−</button><output>${item.quantity}</output><button type="button" data-quantity="1" data-index="${index}" aria-label="Increase ${escapeHtml(item.name)} quantity" ${item.quantity>=stock?'disabled':''}>+</button><button type="button" class="remove-line" data-remove="${index}" aria-label="Remove ${escapeHtml(item.name)} from cart">Remove</button></div><select data-batch="${index}" aria-label="Select batch for ${escapeHtml(item.name)}"><option value="">Auto FEFO</option>${available.map(batch=>`<option value="${escapeHtml(batch.id)}" ${item.batch_id===batch.id?'selected':''}>${escapeHtml(batch.batch_number)} · exp ${escapeHtml(batch.expiry_date)} · ${batch.quantity} left</option>`).join('')}</select><strong class="line-total">${money(item.price*item.quantity)}</strong></div>`;
+    return `<div class="cart-line"><div><strong>${escapeHtml(item.name)}</strong><small>${money(item.price)} each · ${stock} available</small></div><div class="quantity-control"><button type="button" data-quantity="-1" data-index="${index}" aria-label="Decrease ${escapeHtml(item.name)} quantity">−</button><output>${item.quantity}</output><button type="button" data-quantity="1" data-index="${index}" aria-label="Increase ${escapeHtml(item.name)} quantity" ${item.quantity>=stock?'disabled':''}>+</button><button type="button" class="remove-line" data-remove="${index}" aria-label="Remove ${escapeHtml(item.name)} from cart">Remove</button></div><strong class="line-total">${money(item.price*item.quantity)}</strong></div>`;
   }).join('')||'<p class="muted empty-cart">Cart is empty. Search or scan to add a medicine.</p>';
   const cartAvailable=(item)=>{
-    const selected=item.batch_id&&batches.find(batch=>batch.id===item.batch_id);
     const medicine=medicines.find(m=>m.id===item.id)||{};
-    return selected?Math.min(medicineStock(medicine),Number(selected.quantity)||0):sellableStock(medicine);
+    return sellableStock(medicine);
   };
   cartElement.querySelectorAll('[data-quantity]').forEach(button=>button.addEventListener('click',()=>{
     const index=Number(button.dataset.index),next=cart[index].quantity+Number(button.dataset.quantity);
-    if(next>0&&next>cartAvailable(cart[index])){message.textContent='Quantity cannot exceed available stock in the selected batch.';return}
+    if(next>0&&next>cartAvailable(cart[index])){message.textContent='Quantity cannot exceed available stock.';return}
     if(next<=0)cart.splice(index,1);else cart[index].quantity=next;
     renderCart();
   }));
   cartElement.querySelectorAll('[data-remove]').forEach(button=>button.addEventListener('click',()=>{cart.splice(Number(button.dataset.remove),1);renderCart()}));
-  cartElement.querySelectorAll('[data-batch]').forEach(select=>select.addEventListener('change',()=>{
-    const index=Number(select.dataset.batch),item=cart[index];item.batch_id=select.value||null;
-    if(item.quantity>cartAvailable(item)){item.quantity=Math.max(1,cartAvailable(item));message.textContent='Quantity adjusted to the available selected batch.'}
-    renderCart();
-  }));
   const total=fromCents(cart.reduce((sum,item)=>sum+toCents(item.price)*item.quantity,0));
   totalElement.textContent=money(total);
   $('#tillAmount').textContent=money(total);
@@ -206,7 +189,7 @@ $('#checkout').addEventListener('click',async()=>{
   if(!activeSaleId){
     if(!cart.length){message.textContent='Cart is empty.';return}
     button.disabled=true;
-    const {data:saleId,error}=await supabase.rpc('create_sale',{p_items:cart.map(item=>({medicine_id:item.id,quantity:item.quantity,batch_id:item.batch_id,unit_price:item.price})),p_prescription_id:prescription.value||null});
+    const {data:saleId,error}=await supabase.rpc('create_sale',{p_items:cart.map(item=>({medicine_id:item.id,quantity:item.quantity,unit_price:item.price})),p_prescription_id:prescription.value||null});
     button.disabled=false;
     if(error){message.textContent=error.message;return}
     if(!saleId){await load();message.textContent='A medicine price changed or did not match the current catalogue. The sale was blocked and logged for Admin review. Check the updated prices and try again.';return}
@@ -309,7 +292,6 @@ async function checkClaimStatuses(){
 const posRealtime=supabase.channel('seller-pos-live-updates')
   .on('postgres_changes',{event:'*',schema:'public',table:'medicines'},()=>void refreshCatalog())
   .on('postgres_changes',{event:'*',schema:'public',table:'inventory'},()=>void refreshCatalog())
-  .on('postgres_changes',{event:'*',schema:'public',table:'batches'},()=>void refreshCatalog())
   .on('postgres_changes',{event:'UPDATE',schema:'public',table:'sales'},()=>void checkClaimStatuses())
   .subscribe();
 window.setInterval(checkClaimStatuses,30000);
